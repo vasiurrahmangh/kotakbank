@@ -4,7 +4,7 @@
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  grid-gap: 16px;
+  gap: 16px;
 }
 
 .cards-help > ul > li {
@@ -17,7 +17,7 @@
 }
 
 .cards-help > ul > li:hover {
-  box-shadow: 0 2px 12px rgba(0 0 0 / 10%);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 10%);
 }
 
 .cards-help .cards-help-card-image {
