@@ -1,0 +1,39 @@
+{
+  "variantName": "tabs-rates",
+  "baseBlock": "tabs",
+  "version": "1.0.0",
+  "created": "2026-06-23T00:00:00.000Z",
+  "sourceContext": {
+    "originUrl": "https://www.kotak.bank.in/en/home.html",
+    "originPage": "Kotak Mahindra Bank home page",
+    "blockPosition": "bottom"
+  },
+  "visualCharacteristics": {
+    "colorScheme": "light",
+    "density": "compact",
+    "purpose": "rates",
+    "imagePattern": "noimg"
+  },
+  "contentPattern": {
+    "structure": "tab label + tab content (rate tables) per row",
+    "buttonCount": 1,
+    "imageCount": 0
+  },
+  "reuseGuidance": {
+    "suitableFor": [
+      "rates & charges switchable panels (Deposits / Loans)",
+      "tabbed tabular data (Regular / Senior Citizen rates)",
+      "interactive content switchers with tables inside"
+    ],
+    "notSuitableFor": [
+      "image carousels",
+      "card grids",
+      "FAQ collapsible content (use accordion)"
+    ]
+  },
+  "usage": {
+    "pagesUsing": ["/en/home"],
+    "reuseCount": 1,
+    "lastUsed": "2026-06-23T00:00:00.000Z"
+  }
+}

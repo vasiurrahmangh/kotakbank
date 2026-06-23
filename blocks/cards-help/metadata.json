@@ -1,0 +1,38 @@
+{
+  "variantName": "cards-help",
+  "baseBlock": "cards",
+  "version": "1.0.0",
+  "created": "2026-06-23T00:00:00.000Z",
+  "sourceContext": {
+    "originUrl": "https://www.kotak.bank.in/en/home.html",
+    "originPage": "Kotak Mahindra Bank home page",
+    "blockPosition": "middle"
+  },
+  "visualCharacteristics": {
+    "colorScheme": "light",
+    "density": "compact",
+    "purpose": "help",
+    "imagePattern": "icon"
+  },
+  "contentPattern": {
+    "structure": "icon + title + short description (link tile)",
+    "buttonCount": 0,
+    "imageCount": 1
+  },
+  "reuseGuidance": {
+    "suitableFor": [
+      "icon-driven help/support tile rows",
+      "compact action tiles (visit help center, contact us, locate us, etc.)",
+      "centered icon + title + description cards"
+    ],
+    "notSuitableFor": [
+      "large image product cards",
+      "image-heavy promotional cards"
+    ]
+  },
+  "usage": {
+    "pagesUsing": ["/en/home"],
+    "reuseCount": 1,
+    "lastUsed": "2026-06-23T00:00:00.000Z"
+  }
+}

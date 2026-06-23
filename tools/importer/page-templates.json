@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "projectType": "da"
+  },
+  "templates": [
+    {
+      "name": "home",
+      "urls": [
+        "https://www.kotak.bank.in/en/home.html"
+      ],
+      "representativeUrl": "https://www.kotak.bank.in/en/home.html",
+      "coverageGaps": [],
+      "description": "Kotak Mahindra Bank home page: hero carousel, product card grid, helpline banner carousel, video/Hausla section, Knowledge Hub, Need Help cards, app/promo cards, Rates & Charges, footer link lists",
+      "blocks": [
+        {
+          "name": "carousel-hero",
+          "instances": [
+            ".heroslider.section"
+          ]
+        },
+        {
+          "name": "cards-product",
+          "instances": [
+            ".white-background > div:nth-child(1)",
+            ".white-background > div:nth-child(2)",
+            ".white-background > div:nth-child(8)",
+            ".white-background > div:nth-child(9)"
+          ]
+        },
+        {
+          "name": "carousel-banner",
+          "instances": [
+            ".white-background > div.thincarousalbanner.section"
+          ]
+        },
+        {
+          "name": "columns-media",
+          "instances": [
+            ".white-background > div:nth-child(4)",
+            ".white-background > div:nth-child(6)"
+          ]
+        },
+        {
+          "name": "cards-help",
+          "instances": [
+            ".white-background > div:nth-child(7)"
+          ]
+        },
+        {
+          "name": "tabs-rates",
+          "instances": [
+            ".white-background > div:nth-child(9) .ratecardwrapper.section"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "id": "section-1",
+          "name": "Hero carousel",
+          "selector": ".heroslider.section",
+          "style": null,
+          "blocks": [
+            "carousel-hero"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-2",
+          "name": "Product card grid (row 1)",
+          "selector": ".white-background > div:nth-child(1)",
+          "style": null,
+          "blocks": [
+            "cards-product"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-3",
+          "name": "Product card grid (row 2)",
+          "selector": ".white-background > div:nth-child(2)",
+          "style": null,
+          "blocks": [
+            "cards-product"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-4",
+          "name": "Helpline banner carousel",
+          "selector": ".white-background > div.thincarousalbanner.section",
+          "style": null,
+          "blocks": [
+            "carousel-banner"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-5",
+          "name": "Video + Hausla text",
+          "selector": ".white-background > div:nth-child(4)",
+          "style": null,
+          "blocks": [
+            "columns-media"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-6",
+          "name": "Knowledge Hub heading",
+          "selector": ".white-background > div:nth-child(5)",
+          "style": null,
+          "blocks": [],
+          "defaultContent": [
+            ".white-background > div:nth-child(5)"
+          ]
+        },
+        {
+          "id": "section-7",
+          "name": "Knowledge Hub content",
+          "selector": ".white-background > div:nth-child(6)",
+          "style": null,
+          "blocks": [
+            "columns-media"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-8",
+          "name": "Need Help",
+          "selector": ".white-background > div:nth-child(7)",
+          "style": null,
+          "blocks": [
+            "cards-help"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-9",
+          "name": "App/promo cards (row 1)",
+          "selector": ".white-background > div:nth-child(8)",
+          "style": null,
+          "blocks": [
+            "cards-product"
+          ],
+          "defaultContent": []
+        },
+        {
+          "id": "section-10",
+          "name": "App/promo cards (row 2) + Rates & Charges",
+          "selector": ".white-background > div:nth-child(9)",
+          "style": null,
+          "blocks": [
+            "cards-product",
+            "tabs-rates"
+          ],
+          "defaultContent": []
+        }
+      ]
+    }
+  ]
+}
