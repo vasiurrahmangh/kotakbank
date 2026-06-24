@@ -1,3 +1,11 @@
+/* Kotak carousel-hero: full-bleed banner with image background and overlaid content */
+
+/* Allow the hero to break out of the 1200px section constraint */
+.carousel-hero-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
 .carousel-hero .carousel-hero-slides-container {
   position: relative;
 }
@@ -23,70 +31,133 @@
 .carousel-hero .carousel-hero-slide {
   flex: 0 0 100%;
   scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
   position: relative;
   width: 100%;
-  min-height: min(50vw, calc(100dvh - var(--header-height)));
+  aspect-ratio: 3 / 4;
 }
 
-.carousel-hero .carousel-hero-slide:has(.carousel-hero-slide-content[data-align='center']) {
-  align-items: center;
-}
-
-.carousel-hero .carousel-hero-slide:has(.carousel-hero-slide-content[data-align='right']) {
-  align-items: flex-end;
-}
-
-.carousel-hero .carousel-hero-slide .carousel-hero-slide-image picture {
+/* Full-bleed background image, fills the entire slide */
+.carousel-hero .carousel-hero-slide .carousel-hero-slide-image {
   position: absolute;
   inset: 0;
 }
 
-.carousel-hero .carousel-hero-slide .carousel-hero-slide-image picture > img {
-  height: 100%;
+.carousel-hero .carousel-hero-slide .carousel-hero-slide-image picture {
+  display: block;
   width: 100%;
+  height: 100%;
+}
+
+.carousel-hero .carousel-hero-slide .carousel-hero-slide-image picture > img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
+/* Content overlay - constrained, left aligned, vertically centered over image */
 .carousel-hero .carousel-hero-slide .carousel-hero-slide-content {
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  margin: 68px;
-  padding: 16px;
-  color: white;
-  background-color: rgb(19 19 19 / 75%);
-  position: relative;
-  width: var(--slide-content-width, auto);
+  width: 100%;
+  max-width: 1170px;
+  margin: 0 auto;
+  padding: 0 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
 }
 
+/* Heading - large brand red (per source slide), bold Roboto */
+.carousel-hero .carousel-hero-slide-content h1,
+.carousel-hero .carousel-hero-slide-content h2,
+.carousel-hero .carousel-hero-slide-content h3 {
+  margin: 12px 0 10px;
+  max-width: 100%;
+  font-family: var(--heading-font-family);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.5px;
+  color: var(--brand-red);
+}
+
+/* Supporting text - navy, regular */
+.carousel-hero .carousel-hero-slide-content p {
+  margin: 0 0 10px;
+  max-width: 100%;
+  font-family: var(--body-font-family);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--brand-navy);
+}
+
+/* "Apply Now" red pill button - overrides EDS button auto-decoration */
+.carousel-hero .carousel-hero-slide-content p.button-container {
+  margin: 6px 0 0;
+}
+
+.carousel-hero .carousel-hero-slide-content a:any-link,
+.carousel-hero .carousel-hero-slide-content a.button:any-link {
+  display: inline-block;
+  width: auto;
+  max-width: none;
+  margin: 6px 25px 0 0;
+  border: 1px solid rgb(237 66 35);
+  border-radius: 4px;
+  padding: 10px 25px;
+  font-family: var(--body-font-family);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: rgb(255 255 255);
+  background-color: rgb(237 66 35);
+  text-decoration: none;
+  white-space: normal;
+}
+
+.carousel-hero .carousel-hero-slide-content a.button:any-link:hover,
+.carousel-hero .carousel-hero-slide-content a:any-link:hover {
+  border-color: var(--brand-red);
+  background-color: var(--brand-red);
+  color: rgb(255 255 255);
+}
+
+/* Dot indicators - centered at the bottom, over the banner */
 .carousel-hero .carousel-hero-slide-indicators {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px 12px;
-  padding: 12px;
-  background-color: var(--light-color);
+  gap: 0 10px;
+  padding: 0;
   line-height: 0;
 }
 
 .carousel-hero .carousel-hero-slide-indicator button {
-  width: 24px;
-  height: 24px;
+  width: 10px;
+  height: 10px;
   margin: 0;
   padding: 0;
+  border: 1px solid rgb(255 255 255);
   border-radius: 50%;
-  background-color: #dadada;
+  background-color: transparent;
   transition: background-color 0.2s;
 }
 
 .carousel-hero .carousel-hero-slide-indicator button:disabled,
 .carousel-hero .carousel-hero-slide-indicator button:hover,
 .carousel-hero .carousel-hero-slide-indicator button:focus-visible {
-  background-color: var(--text-color);
+  background-color: rgb(255 255 255);
 }
 
+/* Prev/next navigation arrows */
 .carousel-hero .carousel-hero-navigation-buttons {
   position: absolute;
   top: 50%;
@@ -102,18 +173,18 @@
 /* stylelint-disable-next-line no-descending-specificity */
 .carousel-hero .carousel-hero-navigation-buttons button {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   margin: 0;
-  border-radius: 50%;
   padding: 0;
+  border-radius: 50%;
   background-color: rgb(19 19 19 / 25%);
   transition: background-color 0.2s;
 }
 
 .carousel-hero .carousel-hero-navigation-buttons button:hover,
 .carousel-hero .carousel-hero-navigation-buttons button:focus-visible {
-  background-color: rgb(19 19 19 / 75%);
+  background-color: rgb(19 19 19 / 55%);
 }
 
 .carousel-hero .carousel-hero-navigation-buttons button::after {
@@ -122,8 +193,8 @@
   border: 2px solid;
   border-bottom: 0;
   border-left: 0;
-  height: 12px;
-  width: 12px;
+  height: 10px;
+  width: 10px;
   position: absolute;
   top: 50%;
   left: calc(50% + 2px);
@@ -136,18 +207,36 @@
 }
 
 @media (width >= 600px) {
+  .carousel-hero .carousel-hero-slide {
+    aspect-ratio: 16 / 9;
+  }
+
+  .carousel-hero .carousel-hero-slide-content h1,
+  .carousel-hero .carousel-hero-slide-content h2,
+  .carousel-hero .carousel-hero-slide-content h3 {
+    font-size: 36px;
+    max-width: 52%;
+  }
+
+  .carousel-hero .carousel-hero-slide-content p {
+    max-width: 52%;
+  }
+}
+
+@media (width >= 900px) {
+  .carousel-hero .carousel-hero-slide {
+    aspect-ratio: 1440 / 548;
+  }
+
+  .carousel-hero .carousel-hero-slide-content h1,
+  .carousel-hero .carousel-hero-slide-content h2,
+  .carousel-hero .carousel-hero-slide-content h3 {
+    font-size: 44px;
+    line-height: 52px;
+  }
+
   .carousel-hero .carousel-hero-navigation-buttons {
     left: 24px;
     right: 24px;
-  }
-
-  .carousel-hero .carousel-hero-slide .carousel-hero-slide-content {
-    --slide-content-width: calc((100% - 184px) / 2);
-
-    margin: 92px;
-  }
-
-  .carousel-hero .carousel-hero-slide .carousel-hero-slide-content[data-align='justify'] {
-    --slide-content-width: auto;
   }
 }

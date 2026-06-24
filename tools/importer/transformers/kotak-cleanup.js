@@ -2,145 +2,173 @@
 /* global WebImporter */
 
 /**
- * Transformer: Kotak (legacy AEM) site-wide cleanup.
+ * Transformer: Kotak Mahindra Bank site-wide cleanup.
  *
- * All selectors below were verified against migration-work/cleaned.html for
- * https://www.kotak.bank.in/en/home.html. Nothing here is guessed.
- *
- * Page shell layout discovered in captured DOM (body > div counted by nth-of-type):
- *   div(1)  -> notification widget wrapper (#modal-widget-*, #notification_widget) + clientlib <link>
- *   header.header-container.search-results-cont          -> global site header / nav
- *   div(2)  -> #search-modal (.search-modal-popup.modal.fade)
- *   div(3)  -> .mobile-header-container
- *   div(4)  -> .headerfooter-container (mobile bottom tab bar chrome)
- *   div(5)  -> .heroslider.section            (AUTHORABLE: hero carousel)
- *   div(6)  -> empty .iparys_inherited placeholder
- *   div(7)  -> main authorable content (cards, banner carousel, video, etc.)
- *   div(8)  -> empty .iparys_inherited placeholder
- *   footer.footer                              -> global site footer
- *   div(9)  -> #fade loader overlay
- *   iframe x3                                  -> doubleclick / tracking pixels
- *
- * EDS auto-populates header and footer, so all global chrome is removed and only
- * the authorable hero + main content survives.
+ * All selectors below were validated against migration-work/cleaned.html for the
+ * Kotak home page. The importer runs against the LIVE URL, where this site
+ * lazy-loads images: many real <img> elements ship with an empty/placeholder
+ * `src` and the real URL only in `data-originalsrc` / `data-src` / `data-srcset`.
+ * The first thing beforeTransform does is PROMOTE those lazy images to a concrete
+ * `src` so the importer's image preprocessing does not delete product/promo card
+ * images. (Confirmed critical fix from a prior build of this exact page.)
  */
 
-const TransformHook = {
-  beforeTransform: 'beforeTransform',
-  afterTransform: 'afterTransform',
-};
+const TransformHook = { beforeTransform: 'beforeTransform', afterTransform: 'afterTransform' };
+
+// Treat as a placeholder/empty src if missing, blank, a data: URI, a 1x1/blank
+// gif, or a known lazy-load placeholder.
+function isPlaceholderSrc(src) {
+  if (!src) return true;
+  const s = src.trim();
+  if (s === '') return true;
+  if (s.startsWith('data:')) return true;
+  if (/(blank|placeholder|spacer|1x1|transparent)\.(gif|png|svg)(\?|$)/i.test(s)) return true;
+  return false;
+}
+
+// Pick the first real URL out of a srcset value ("url 360w, url2 720w" -> url).
+function firstFromSrcset(srcset) {
+  if (!srcset) return '';
+  const first = srcset.split(',')[0];
+  if (!first) return '';
+  return first.trim().split(/\s+/)[0] || '';
+}
+
+// Normalize AEM static-rendition URLs:
+//   .../image.jpg.transform/transformer-width-360-height-202/image.jpg -> .../image.jpg
+// so the importer fetches the original (full-resolution) asset instead of a
+// fixed crop. Handles jpg/jpeg/png/webp/gif/svg base extensions.
+function normalizeRenditionUrl(url) {
+  if (!url) return url;
+  const m = url.match(/^(.*\.(?:jpe?g|png|webp|gif|svg))\.transform\/[^?#]*$/i);
+  return m ? m[1] : url;
+}
+
+// Promote every lazy <img> to a concrete, normalized src BEFORE any other
+// cleanup. Only remove an <img> that has neither a usable src nor any usable
+// lazy attribute.
+function promoteLazyImages(element) {
+  element.querySelectorAll('img').forEach((img) => {
+    const currentSrc = img.getAttribute('src');
+    let resolved = '';
+
+    if (!isPlaceholderSrc(currentSrc)) {
+      resolved = currentSrc;
+    } else {
+      resolved =
+        img.getAttribute('data-originalsrc') ||
+        img.getAttribute('data-src') ||
+        firstFromSrcset(img.getAttribute('data-srcset')) ||
+        firstFromSrcset(img.getAttribute('srcset')) ||
+        '';
+    }
+
+    resolved = normalizeRenditionUrl((resolved || '').trim());
+
+    if (resolved) {
+      img.setAttribute('src', resolved);
+      // Drop now-redundant lazy attributes so preprocessing doesn't re-read them.
+      img.removeAttribute('data-originalsrc');
+      img.removeAttribute('data-src');
+      img.removeAttribute('data-srcset');
+      img.removeAttribute('srcset');
+      img.removeAttribute('sizes');
+    } else if (isPlaceholderSrc(currentSrc)) {
+      // No usable src and no usable lazy attribute -> safe to remove.
+      img.remove();
+    }
+  });
+}
 
 export default function transform(hookName, element, payload) {
   if (hookName === TransformHook.beforeTransform) {
-    // Overlays / modals that interfere with block parsing.
-    // Verified in DOM: <div id="search-modal" class="search-modal-popup modal fade">,
-    // <div class="modal" id="audioPopupShow"> (6 instances inside carousels),
-    // <div id="fade"> loader overlay near end of body.
+    // 1) PROMOTE LAZY IMAGES FIRST — before anything that could strip them.
+    promoteLazyImages(element);
+
+    // 2) Remove modal / audio / popup overlays that duplicate or block parsing.
+    //    Validated in cleaned.html:
+    //      <div class="search-modal-popup modal fade"> , .modal.* success/get-help
+    //      <audio id="my_audio_hero"> (hero carousel audio)
     WebImporter.DOMUtils.remove(element, [
-      '#search-modal',
-      '#audioPopupShow',
-      '.modal.fade',
-      '#fade',
+      '.search-modal-popup',
+      '.success-modal',
+      '.get-help-popup',
+      'audio',
+      '#my_audio_hero',
     ]);
 
-    // Owl carousel injects duplicate "cloned" slides at runtime (8 in captured DOM:
-    // inside .heroslider and .thincarousalbanner). Removing them before parsing keeps
-    // carousel parsers from extracting duplicate slides.
+    // 3) Remove notification / personalization widget chrome.
+    //    Validated: #notification_widget, [id^="modal-widget-"], #unica-icon,
+    //    .notificationWidgetId, .unica-personlization-widget-cta
+    WebImporter.DOMUtils.remove(element, [
+      '#notification_widget',
+      '[id^="modal-widget-"]',
+      '#unica-icon',
+      '.notificationWidgetId',
+      '.unica-personlization-widget-cta',
+    ]);
+
+    // 4) Remove DMP ad slots (non-authorable injected ad targets).
+    //    Validated: id="bp_6088_DmpSlotId134"
+    WebImporter.DOMUtils.remove(element, ['[id*="DmpSlotId"]']);
+
+    // 5) Remove owl-carousel duplicated/cloned slides so block parsers see each
+    //    real slide exactly once. Validated: .owl-item.cloned present (owl clones
+    //    leading/trailing slides for infinite loop). Keep the originals.
     element.querySelectorAll('.owl-item.cloned').forEach((el) => el.remove());
-
-    // Hidden form inputs / personalization triggers that are not authorable content.
-    // Verified: <input id="unica-icon">, <input id="search-...">, 14 <input> total.
-    element.querySelectorAll('input').forEach((el) => el.remove());
-
-    // Promote lazy-loaded images to a real `src` BEFORE anything else processes
-    // the DOM. Many images on this site (especially personalized product cards)
-    // ship with an empty/placeholder `src` and the real URL only in
-    // data-srcset / data-originalsrc / data-src. The importer's built-in image
-    // preprocessing removes placeholder/base64 <img> elements, which would
-    // delete these before block parsers can read them. Setting a concrete src
-    // here keeps the image nodes alive and resolvable downstream.
-    // AEM static-rendition URLs (".jpg.transform/.../image.jpg") are normalized
-    // to their base asset URL, which the importer downloads reliably.
-    const LAZY_SRC_ATTRS = ['data-originalsrc', 'data-src', 'data-original', 'data-lazy-src'];
-    const normalizeRendition = (u) => (u ? u.replace(/\.transform\/[^?#]*/i, '') : u);
-    element.querySelectorAll('img').forEach((img) => {
-      const src = img.getAttribute('src') || '';
-      const hasRealSrc = src.trim() !== '' && !src.startsWith('data:');
-      if (hasRealSrc) {
-        img.setAttribute('src', normalizeRendition(src));
-        return;
-      }
-      let resolved = '';
-      LAZY_SRC_ATTRS.some((attr) => {
-        const v = img.getAttribute(attr);
-        if (v && v.trim() !== '' && !v.trim().startsWith('data:')) { resolved = v.trim(); return true; }
-        return false;
-      });
-      if (!resolved) {
-        const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset') || '';
-        if (srcset) resolved = srcset.split(',')[0].trim().split(/\s+/)[0];
-      }
-      if (resolved) img.setAttribute('src', normalizeRendition(resolved));
-    });
   }
 
   if (hookName === TransformHook.afterTransform) {
-    // Non-authorable global chrome — EDS supplies header/footer/nav.
-    // Selectors verified in captured DOM.
+    // Remove non-authorable site shell/chrome. Mapped from the live import DOM:
+    //   <header class="header-container ...">  -> desktop mega-menu nav
+    //   <div class="mobile-header-container">  -> mobile menu nav
+    //   <div class="headerfooter-container">   -> mobile bottom tab bar
+    //   <footer class="footer">                -> site footer + disclaimers
+    //   notification widget + disclaimer modal overlays
+    //   AEM clientlib <link>/<style>/<script>, <noscript>, <iframe>
+    // Removal-based (not isolation): the importer's captured DOM is sometimes
+    // under-rendered (hero/body lazy content incomplete), so we must never
+    // discard-by-reconstruction — only strip known chrome.
     WebImporter.DOMUtils.remove(element, [
-      // Notification / maintenance widget at top of body.
-      '[id^="modal-widget-"]',
-      '#notification_widget',
-      '.notificationWidgetId',
-      // Global site header / navigation.
-      'header.header-container',
+      'header',
+      '.header-container',
       '.mobile-header-container',
-      // Mobile bottom tab bar ("Home / Learn / Help / Get App").
       '.headerfooter-container',
-      // Global site footer.
-      'footer.footer',
-      // Loader overlay.
+      'nav',
+      'footer',
+      '.footer',
+      '#notification_widget',
+      '[id^="modal-widget-"]',
+      '.notificationWidgetId',
+      '.success-modal',
+      '.get-help-popup',
+      '.modal.fade',
       '#fade',
-      // DMP / ad slot placeholders (e.g. <div id="bp_6088_DmpSlotId134">).
-      '[id^="bp_"][id*="DmpSlotId"]',
-      // Non-content scaffolding / scripts / tracking.
+      '[id*="DmpSlotId"]',
       'link',
       'style',
       'script',
       'noscript',
       'iframe',
-      'audio',
+      'input[type="hidden"]',
     ]);
 
-    // Strip AEM HTL (Sightly) authoring leftovers and tracking attributes that
-    // survived in the captured DOM. Verified attribute names present in cleaned.html.
+    // Safety net: remove any stray top-level mega-menu lists that survived (bare
+    // <ul> nav not wrapped in <header> in some captures). A nav <ul> is identified
+    // by its menu classes.
+    element.querySelectorAll(
+      'ul.header-menu-ul, ul.mb-menu-ul, .header-menu, .mb-menu, .sec-footer-list-box',
+    ).forEach((el) => el.remove());
+
+    // Strip tracking / authoring scaffolding attributes from all remaining nodes.
     element.querySelectorAll('*').forEach((el) => {
       el.removeAttribute('data-sly-test');
       el.removeAttribute('data-sly-list');
-      el.removeAttribute('data-hem-burager');
-      el.removeAttribute('data-ic-target');
+      el.removeAttribute('data-sly-use');
       el.removeAttribute('data-mb-lilevel');
-      el.removeAttribute('data-size');
-    });
-
-    // Remove empty image placeholders (e.g. <img src="" ...>) and inline base64
-    // svg arrow glyphs that produce no meaningful content in markdown.
-    // IMPORTANT: many real images on this site are lazy-loaded with an empty
-    // src and the actual URL held in data-srcset / data-originalsrc / data-src.
-    // Those must be preserved so block parsers can resolve them — only remove
-    // images that have no usable lazy-load attribute either.
-    const LAZY_ATTRS = ['data-srcset', 'data-originalsrc', 'data-src', 'data-original', 'data-lazy-src', 'srcset'];
-    const hasLazyUrl = (img) => LAZY_ATTRS.some((attr) => {
-      const v = img.getAttribute(attr);
-      return v && v.trim() !== '' && !v.trim().startsWith('data:');
-    });
-    element.querySelectorAll('img').forEach((img) => {
-      const src = img.getAttribute('src') || '';
-      const isEmpty = src.trim() === '';
-      const isInlineSvg = src.startsWith('data:image/svg+xml');
-      if ((isEmpty || isInlineSvg) && !hasLazyUrl(img)) {
-        img.remove();
-      }
+      el.removeAttribute('data-ic-target');
+      el.removeAttribute('data-hem-burager');
+      el.removeAttribute('onclick');
     });
   }
 }

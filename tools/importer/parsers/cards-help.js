@@ -1,110 +1,101 @@
 /* eslint-disable */
 /* global WebImporter */
 /**
- * Parser for cards-help. Base: cards.
- * Source: https://www.kotak.bank.in/en/home.html
- *   (div.parsys.section — "Need Help?" icon tiles)
- * Generated for Kotak home migration (DA project).
+ * Parser for cards-help. Base block: cards.
+ * Source: https://www.kotak.bank.in/en/home.html (.white-background > div:nth-child(7))
+ * Generated for Kotak home page (DA project).
  *
- * Block table: 2 columns, N rows.
- *   row 1: block name
- *   each tile row: [ icon image, text (title link + short description) ]
- *
- * Source notes:
- *   - Each tile is `a.iconsider-large-a` (carries the destination href) wrapping
- *     `.iconsider-large-img > img` (icon) and `.iconsider-text`
- *     (`.iconsider-title` + `.iconsider-dec`).
- *   - The surrounding "Need Help?" heading lives in a sibling `.text.section`
- *     (section default content) and is intentionally not pulled into this block.
- *   - Icons may be lazy-loaded; the best real URL is resolved from src/data-src.
- *
- * Validation note: extraction logic verified directly against the live DOM
- * (6 tiles: Visit Help Center, Contact us, Locate us, Report a fraud,
- * Lodge a complaint, Block lost/stolen card) — all icons, titles, descriptions
- * and hrefs resolve correctly. The validator's "no results" is caused by the
- * page-templates.json instance selector (`div.parsys.section:nth-of-type(2)`),
- * which mis-targets because all section siblings are <div> (so :nth-of-type
- * counts every div, not just .parsys.section). Selector fix is owned by
- * block-mapping-manager; the parser below is correct for the real element.
+ * "Need Help?" icon tiles (Visit Help Center, Contact us, Locate us, Report a fraud,
+ * Lodge a complaint, Block lost/stolen card).
+ * Block table: 2 columns, N rows (one tile per row): [icon image] | [title link + description].
+ * Skips Owl Carousel ".cloned" duplicate tiles.
  */
+
+const BASE_URL = 'https://www.kotak.bank.in';
+
+function resolveImageUrl(img) {
+  if (!img) return null;
+  const candidates = [
+    img.getAttribute('src'),
+    img.getAttribute('data-src'),
+    img.getAttribute('data-original'),
+    img.getAttribute('data-originalsrc'),
+    img.getAttribute('data-lazy-src'),
+  ];
+  const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset');
+  if (srcset) {
+    const first = srcset.split(',')[0].trim().split(/\s+/)[0];
+    if (first) candidates.push(first);
+  }
+  let url = candidates.find((c) => c && !c.startsWith('data:'));
+  if (!url) return null;
+  return url.replace(/\.transform\/[^?#]*/i, '');
+}
+
+function absolutize(href) {
+  if (!href) return href;
+  if (/^https?:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return href;
+  if (href.startsWith('/')) return BASE_URL + href;
+  return href;
+}
+
+function textOf(el) {
+  return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+}
+
 export default function parse(element, { document }) {
-  const cells = [];
-
-  const resolveImageUrl = (img) => {
-    if (!img) return '';
-    const candidates = [
-      img.getAttribute('src'),
-      img.getAttribute('data-src'),
-      img.getAttribute('data-original'),
-      img.getAttribute('data-lazy-src'),
-    ].filter(Boolean);
-    const real = candidates.find((u) => u && !u.startsWith('data:'));
-    if (real) return real;
-    const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
-    if (srcset) return srcset.split(',')[0].trim().split(/\s+/)[0];
-    return candidates[0] || '';
-  };
-
-  // Each tile is an icon-slider anchor. (No owl clones in this slider, but guard.)
-  let tiles = Array.from(element.querySelectorAll('a.iconsider-large-a'));
+  let tiles = Array.from(element.querySelectorAll('.owl-item:not(.cloned)'));
   if (!tiles.length) {
-    tiles = Array.from(element.querySelectorAll('.iconsider-large, [class*="iconsider-large"]'));
+    tiles = Array.from(element.querySelectorAll('.iconsider-large, a.iconsider-large-a'));
   }
 
-  const seen = new Set();
-
+  const cells = [];
+  const seenTitles = new Set();
   tiles.forEach((tile) => {
-    if (tile.closest('.cloned')) return;
+    const img = tile.querySelector('img');
+    const url = resolveImageUrl(img);
+    const titleEl = tile.querySelector('.iconsider-title, h1, h2, h3, h4, h5, h6, [class*="title"]');
+    const descEl = tile.querySelector('.iconsider-dec, p, [class*="dec"], [class*="desc"]');
+    const linkEl = tile.querySelector('a[href]');
 
-    const href = tile.matches('a[href]')
-      ? tile.getAttribute('href')
-      : (tile.querySelector('a[href]') && tile.querySelector('a[href]').getAttribute('href'));
+    const titleText = textOf(titleEl);
+    if (!titleText && !url) return;
+    // Guard against duplicate tiles if clones slipped through.
+    if (titleText && seenTitles.has(titleText)) return;
+    if (titleText) seenTitles.add(titleText);
 
-    const iconImg = tile.querySelector('.iconsider-large-img img, img');
-    const title = tile.querySelector('.iconsider-title');
-    const desc = tile.querySelector('.iconsider-dec, p');
-
-    if (!iconImg && !title && !desc) return;
-
-    // De-duplicate (guard against repeated tiles).
-    const key = href || (title && title.textContent.trim()) || '';
-    if (key && seen.has(key)) return;
-    if (key) seen.add(key);
-
-    // --- Image cell ---
-    let imageCell = '';
-    if (iconImg) {
-      const url = resolveImageUrl(iconImg);
-      if (url) {
-        const newImg = document.createElement('img');
-        newImg.setAttribute('src', url);
-        const alt = (title && title.textContent.trim())
-          || iconImg.getAttribute('alt') || '';
-        if (alt) newImg.setAttribute('alt', alt);
-        const picture = document.createElement('picture');
-        picture.append(newImg);
-        imageCell = picture;
-      }
+    // Icon cell
+    let iconCell = '';
+    if (url) {
+      const newImg = document.createElement('img');
+      newImg.src = url;
+      const alt = (img.getAttribute('alt') || img.getAttribute('title') || titleText || '').trim();
+      if (alt) newImg.alt = alt;
+      iconCell = newImg;
     }
 
-    // --- Text cell: title (linked) + description ---
-    const textCell = [];
-    if (title) {
-      const titleText = title.textContent.trim();
+    // Body cell: title linked + description
+    const body = [];
+    if (titleText) {
+      const href = linkEl && linkEl.getAttribute('href');
+      const heading = document.createElement('h3');
       if (href) {
-        const link = document.createElement('a');
-        link.setAttribute('href', href);
-        link.textContent = titleText;
-        const p = document.createElement('p');
-        p.append(link);
-        textCell.push(p);
+        const a = document.createElement('a');
+        a.href = absolutize(href);
+        a.textContent = titleText;
+        heading.append(a);
       } else {
-        textCell.push(title);
+        heading.textContent = titleText;
       }
+      body.push(heading);
     }
-    if (desc && desc.textContent.trim()) textCell.push(desc);
+    if (descEl && textOf(descEl)) {
+      const p = document.createElement('p');
+      p.textContent = textOf(descEl);
+      body.push(p);
+    }
 
-    cells.push([imageCell, textCell.length ? textCell : '']);
+    cells.push([iconCell, body.length ? body : '']);
   });
 
   if (!cells.length) {

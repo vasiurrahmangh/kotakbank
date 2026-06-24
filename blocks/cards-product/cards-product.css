@@ -1,27 +1,147 @@
+/* Block: cards-product
+ * Visual design extracted from Kotak source feature cards (computed styles).
+ * White cards on light page, edge-to-edge top image, uppercase eyebrow,
+ * dark heading, grey description, red CTA with circular arrow icon.
+ */
+
 .cards-product > ul {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(257px, 1fr));
-  gap: 24px;
+  grid-template-columns: 1fr;
+  gap: 30px;
 }
 
 .cards-product > ul > li {
-  border: 1px solid #dadada;
+  display: flex;
+  flex-direction: column;
   background-color: var(--background-color);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
-.cards-product .cards-product-card-body {
-  margin: 16px;
-}
-
+/* image fills the card top, edge-to-edge */
 .cards-product .cards-product-card-image {
   line-height: 0;
 }
 
-.cards-product > ul > li img {
+.cards-product .cards-product-card-image img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 360 / 203;
   object-fit: cover;
+  display: block;
+  border-radius: 4px 4px 0 0;
+}
+
+/* text content */
+.cards-product .cards-product-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 30px 23px;
+}
+
+/* description (default paragraph) */
+.cards-product .cards-product-card-body p {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 23px;
+  color: var(--text-color);
+}
+
+/* heading */
+.cards-product .cards-product-card-body h2,
+.cards-product .cards-product-card-body h3,
+.cards-product .cards-product-card-body h4 {
+  margin: 0 0 10px;
+  font-family: var(--heading-font-family);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: normal;
+  color: var(--text-color);
+  text-align: left;
+}
+
+/* eyebrow label (authored as <strong> wrapped in <p>) */
+.cards-product .cards-product-card-body p strong {
+  display: block;
+}
+
+.cards-product .cards-product-card-body p:has(strong) {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 23px;
+  text-transform: uppercase;
+  color: var(--text-color);
+}
+
+/* push the CTA to the bottom of equal-height cards */
+.cards-product .cards-product-card-body p:last-child {
+  margin: auto 0 0;
+  padding-top: 13px;
+}
+
+/* red CTA link with circular outline arrow icon */
+.cards-product .cards-product-card-body a:any-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--brand-red);
+  text-decoration: none;
+}
+
+.cards-product .cards-product-card-body a:any-link:hover {
+  color: var(--brand-red);
+  text-decoration: none;
+}
+
+.cards-product .cards-product-card-body a:any-link::after {
+  content: "";
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="%23e4002b" stroke-width="1.2"/><path d="M7.5 5.5L11 9l-3.5 3.5" stroke="%23e4002b" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+}
+
+/* reset EDS button auto-decoration so CTA stays a plain link */
+.cards-product .cards-product-card-body a.button:any-link {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--brand-red);
+  white-space: normal;
+}
+
+.cards-product .cards-product-card-body p.button-container {
+  margin: auto 0 0;
+  padding-top: 13px;
+}
+
+/* tablet: 2-up */
+@media (width >= 600px) {
+  .cards-product > ul {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* desktop: 3-up */
+@media (width >= 900px) {
+  .cards-product > ul {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }

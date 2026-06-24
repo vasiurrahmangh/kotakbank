@@ -1,96 +1,113 @@
 /* eslint-disable */
 /* global WebImporter */
 /**
- * Parser for tabs-rates. Base: tabs.
+ * Parser for tabs-rates. Base block: tabs.
  * Source: https://www.kotak.bank.in/en/home.html
- *   (the "Rates & Charges" switcher — `.ratecardwrapper.section`)
- * Generated for Kotak home migration (DA project).
+ *   instance: .white-background > div:nth-child(9) .ratecardwrapper.section
+ * Generated for Kotak home page (DA project).
  *
- * Block table: 2 columns, N rows.
- *   row 1: block name
- *   each tab row: [ tab label, tab content (rate text + links) ]
- *
- * Source notes:
- *   - The switcher is an accordion of `.ratecard.section` items. Each item has
- *     `h2.target` (the tab label, e.g. Deposits / Savings Account / Loans, with
- *     a leading icon) and `.toggle-ctnt .block` (the rate figures/text panel).
- *   - A trailing "See all rates" link (`.link-box a[href]`) is appended to the
- *     last tab's content cell so it is preserved.
- *   - Tab labels carry an SVG/PNG icon; only the visible label text is kept so
- *     the tab button renders cleanly.
- *
- * Validation note: the cached block-context source for this variant and the
- * page-templates instance selector (`div.columncontrol.section:nth-of-type(5)`)
- * mis-target a product-card columncontrol rather than the Rates & Charges block
- * (the :nth-of-type selectors count every <div> sibling). The real block lives
- * in `.ratecardwrapper.section` inside the last columncontrol (:nth-child(9)).
- * This parser locates the rate cards within the given element (or falls back to
- * the page's `.ratecardwrapper`) so it is robust to the selector once corrected
- * by block-mapping-manager.
- *
- * Extraction verified against the live DOM: 3 tabs (Deposits / Savings Account /
- * Loans) with their rate figures, plus the "See all rates" link
- * (/en/rates/interest-rates.html). The validator reports "no results" only
- * because the instance selector matches no element, so parse() is never invoked.
+ * "Rates & Charges" tabbed panel. Block table: 2 columns, N rows.
+ *  - Row 1: block name (handled by createBlock).
+ *  - Each subsequent row = one tab: [tab label] | [tab content (rate rows + text)].
+ * Tabs: Deposits, Savings Account, Loans. Trailing "See all rates" link appended to the
+ * last panel.
  */
-export default function parse(element, { document }) {
-  // Find the rate-card accordion items inside the matched element; if the element
-  // doesn't contain them (defective selector), fall back to the page's switcher.
-  let scope = element;
-  let rateCards = Array.from(scope.querySelectorAll('.ratecard.section'));
-  if (!rateCards.length) {
-    const wrapper = element.querySelector('.ratecardwrapper')
-      || (document.querySelector ? document.querySelector('.ratecardwrapper') : null);
-    if (wrapper) {
-      scope = wrapper;
-      rateCards = Array.from(wrapper.querySelectorAll('.ratecard.section'));
-    }
-  }
-  // Last fallback: generic accordion targets.
-  if (!rateCards.length) {
-    rateCards = Array.from(scope.querySelectorAll('.rate-card, .ratecard'));
-  }
 
-  const seeAll = scope.querySelector('.link-box a[href]:not([href^="javascript"])');
+const BASE_URL = 'https://www.kotak.bank.in';
+
+function absolutize(href) {
+  if (!href) return href;
+  if (/^https?:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return href;
+  if (href.startsWith('/')) return BASE_URL + href;
+  return href;
+}
+
+function textOf(el) {
+  return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+}
+
+// Extract the tab label from the ratecard header (figure img + label + arrow icon).
+function tabLabel(card) {
+  const header = card.querySelector('h2, .target, [class*="title"]');
+  if (!header) return '';
+  // Prefer the header anchor's own text (excludes the decorative figure/icon).
+  const anchor = header.querySelector('a') || header;
+  const direct = Array.from(anchor.childNodes)
+    .filter((n) => n.nodeType === 3)
+    .map((n) => n.textContent.replace(/\s+/g, ' ').trim())
+    .join(' ')
+    .trim();
+  return direct || textOf(anchor);
+}
+
+// Build the panel content: rate rows ("<rate> <name link>") plus any sub-headings.
+function tabContent(card, document) {
+  const out = [];
+  const panel = card.querySelector('.toggle-ctnt, [class*="toggle"]') || card;
+
+  // Iterate descendant <p> in order: bold sub-headings and rate rows.
+  panel.querySelectorAll('p').forEach((p) => {
+    const t = textOf(p);
+    if (!t) return;
+    const rateEl = p.querySelector('.FR, [class*="FR"], span');
+    const linkEl = p.querySelector('a[href]');
+    if (rateEl && linkEl) {
+      // Rate row: "<rate>  <name>(link)"
+      const para = document.createElement('p');
+      const rate = document.createElement('strong');
+      rate.textContent = textOf(rateEl);
+      para.append(rate);
+      para.append(document.createTextNode(' '));
+      const a = document.createElement('a');
+      a.href = absolutize(linkEl.getAttribute('href'));
+      a.textContent = textOf(linkEl);
+      para.append(a);
+      out.push(para);
+    } else if (p.querySelector('strong') && t) {
+      // Bold sub-heading (e.g. "Fixed Deposit (15 months ...)").
+      const para = document.createElement('p');
+      const strong = document.createElement('strong');
+      strong.textContent = t;
+      para.append(strong);
+      out.push(para);
+    } else if (linkEl) {
+      const a = document.createElement('a');
+      a.href = absolutize(linkEl.getAttribute('href'));
+      a.textContent = t;
+      out.push(a);
+    } else {
+      const para = document.createElement('p');
+      para.textContent = t;
+      out.push(para);
+    }
+  });
+  return out;
+}
+
+export default function parse(element, { document }) {
+  const cards = Array.from(element.querySelectorAll('.ratecard.section, .ratecard'));
 
   const cells = [];
-
-  rateCards.forEach((card, idx) => {
-    const labelEl = card.querySelector('h2.target, h2, .target');
-    const panel = card.querySelector('.toggle-ctnt, .block');
-
-    // --- Label cell: clean text only (drop icon figure / arrow icon). ---
-    let labelText = '';
-    if (labelEl) {
-      const clone = labelEl.cloneNode(true);
-      clone.querySelectorAll('figure, img, i, svg').forEach((n) => n.remove());
-      labelText = clone.textContent.replace(/\s+/g, ' ').trim();
-    }
-    const label = document.createElement('p');
-    label.textContent = labelText || `Tab ${idx + 1}`;
-
-    // --- Content cell: keep the panel markup (rate figures + descriptions). ---
-    const contentCell = [];
-    if (panel) {
-      const panelClone = panel.cloneNode(true);
-      panelClone.querySelectorAll('script, style, link, input, i, svg').forEach((n) => n.remove());
-      contentCell.push(panelClone);
-    }
-
-    // Append the "See all rates" link to the last tab so it is not lost.
-    if (idx === rateCards.length - 1 && seeAll) {
-      const link = document.createElement('a');
-      link.setAttribute('href', seeAll.getAttribute('href'));
-      link.textContent = seeAll.textContent.replace(/\s+/g, ' ').trim() || 'See all rates';
-      const p = document.createElement('p');
-      p.append(link);
-      contentCell.push(p);
-    }
-
-    if (!labelText && !contentCell.length) return;
-
-    cells.push([label, contentCell.length ? contentCell : '']);
+  cards.forEach((card) => {
+    const label = tabLabel(card);
+    const content = tabContent(card, document);
+    if (!label && !content.length) return;
+    cells.push([label || '', content.length ? content : '']);
   });
+
+  // Append trailing "See all rates" link to the last tab's content.
+  const seeAll = element.querySelector('.main-white-box > .link-box a[href], .link-box a[href]');
+  if (seeAll && cells.length) {
+    const a = document.createElement('a');
+    a.href = absolutize(seeAll.getAttribute('href'));
+    a.textContent = textOf(seeAll);
+    const lastContent = cells[cells.length - 1][1];
+    if (Array.isArray(lastContent)) {
+      lastContent.push(a);
+    } else {
+      cells[cells.length - 1][1] = [a];
+    }
+  }
 
   if (!cells.length) {
     element.replaceWith(...element.childNodes);

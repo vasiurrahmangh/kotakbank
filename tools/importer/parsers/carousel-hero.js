@@ -1,66 +1,84 @@
 /* eslint-disable */
 /* global WebImporter */
 /**
- * Parser for carousel-hero. Base: carousel.
+ * Parser for carousel-hero. Base block: carousel.
  * Source: https://www.kotak.bank.in/en/home.html (.heroslider.section)
- * Generated for Kotak home migration (DA project).
+ * Generated for Kotak home page (DA project).
  *
  * Block table: 2 columns, N rows.
- *   row 1: block name
- *   each slide row: [ image (mandatory), content (title + description + CTA, optional) ]
- *
- * Source notes:
- *   - Each slide is an `.owl-item` wrapping `.hero-carousel-item`.
- *   - Owl loop "cloned" slides (`.owl-item.cloned`) are duplicates and are skipped.
- *   - Slide image is `picture img.hs-image`; content is `.hero-banner-title`,
- *     `.hero-banner-desc` and `a.btn` CTA.
- *   - A hidden `.modal` (audio popup) inside each slide must be excluded.
+ *  - Row 1: block name (handled by createBlock).
+ *  - Each subsequent row = one real slide: [image] | [heading + description + CTA].
+ * Skips Owl Carousel ".cloned" duplicate slides so each real slide appears once.
  */
-export default function parse(element, { document }) {
-  // Slide containers: prefer owl-items, fall back to the inner item wrapper.
-  let slideEls = Array.from(element.querySelectorAll(':scope .owl-item'));
-  if (!slideEls.length) {
-    slideEls = Array.from(element.querySelectorAll('.hero-carousel-item, .hero-slider, [class*="hero-banner"]'));
+
+// Resolve the real image URL across lazy-load patterns and normalize AEM renditions.
+function resolveImageUrl(img) {
+  if (!img) return null;
+  const candidates = [
+    img.getAttribute('src'),
+    img.getAttribute('data-src'),
+    img.getAttribute('data-original'),
+    img.getAttribute('data-originalsrc'),
+    img.getAttribute('data-lazy-src'),
+  ];
+  const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset');
+  if (srcset) {
+    const first = srcset.split(',')[0].trim().split(/\s+/)[0];
+    if (first) candidates.push(first);
   }
+  let url = candidates.find((c) => c && !c.startsWith('data:'));
+  if (!url) return null;
+  // Normalize AEM rendition URLs: strip ".transform/.../image.ext" suffix.
+  url = url.replace(/\.transform\/[^?#]*/i, '');
+  return url;
+}
+
+function buildImage(slide, document) {
+  const img = slide.querySelector('picture img, img');
+  const url = resolveImageUrl(img);
+  if (!url) return img || null;
+  const newImg = document.createElement('img');
+  newImg.src = url;
+  const alt = (img && (img.getAttribute('alt') || img.getAttribute('title'))) || '';
+  if (alt) newImg.alt = alt;
+  return newImg;
+}
+
+export default function parse(element, { document }) {
+  // One real slide per non-cloned owl item; fall back to any direct slide items.
+  let slides = Array.from(element.querySelectorAll('.owl-item:not(.cloned)'));
+  if (!slides.length) {
+    slides = Array.from(element.querySelectorAll('.hero-carousel-item, .item'));
+  }
+  if (!slides.length) slides = [element];
 
   const cells = [];
-  const seenTitles = new Set();
-
-  slideEls.forEach((slideEl) => {
-    // Skip owl loop duplicates.
-    if (slideEl.classList && slideEl.classList.contains('cloned')) return;
-
-    // Drop the hidden modal/audio popup so it never leaks into the content cell.
-    slideEl.querySelectorAll('.modal, audio, .owl-nav, .owl-dots').forEach((n) => n.remove());
-
-    // --- Image cell (mandatory) ---
-    const picture = slideEl.querySelector('picture');
-    const img = slideEl.querySelector('img.hs-image, picture img, img');
-
-    // --- Content cell (optional) ---
-    const title = slideEl.querySelector('h1.hero-banner-title, h2.hero-banner-title, .hero-banner-title, h1, h2, h3');
-    const desc = slideEl.querySelector('.hero-banner-desc');
-    const ctas = Array.from(slideEl.querySelectorAll('a.btn, .btn-box a, a.btn-primary'));
-
-    // Skip empty slides (no image and no text -> nothing authorable).
-    if (!picture && !img && !title && !desc && !ctas.length) return;
-
-    // De-duplicate by title (extra guard against any non-cloned repeats).
-    const key = (title && title.textContent.trim()) || (img && img.getAttribute('src')) || '';
-    if (key && seenTitles.has(key)) return;
-    if (key) seenTitles.add(key);
-
-    const imageCell = picture || img || '';
+  slides.forEach((slide) => {
+    const imageCell = buildImage(slide, document);
 
     const contentCell = [];
-    if (title) contentCell.push(title);
-    if (desc) contentCell.push(desc);
-    ctas.forEach((cta) => contentCell.push(cta));
+    const heading = slide.querySelector('h1, h2, h3, [class*="title"]');
+    if (heading) contentCell.push(heading);
 
-    cells.push([imageCell, contentCell.length ? contentCell : '']);
+    const desc = slide.querySelector('.hero-banner-desc, [class*="desc"]');
+    if (desc) contentCell.push(desc);
+
+    const ctas = Array.from(slide.querySelectorAll('a.btn, .btn-box a, a.btn-primary'));
+    // De-duplicate CTAs that match multiple selectors.
+    const seen = new Set();
+    ctas.forEach((a) => {
+      if (!seen.has(a)) {
+        seen.add(a);
+        contentCell.push(a);
+      }
+    });
+
+    // Only add a row if the slide has any content (image or text).
+    if (imageCell || contentCell.length) {
+      cells.push([imageCell || '', contentCell.length ? contentCell : '']);
+    }
   });
 
-  // Empty-block guard.
   if (!cells.length) {
     element.replaceWith(...element.childNodes);
     return;
