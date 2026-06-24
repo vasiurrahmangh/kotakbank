@@ -1,51 +1,89 @@
 /* eslint-disable */
 /* global WebImporter */
 /**
- * Parser for carousel-banner. Base: carousel.
+ * Parser for carousel-banner. Base block: carousel.
  * Source: https://www.kotak.bank.in/en/home.html (.thincarousalbanner.section)
- * Generated for Kotak home migration (DA project).
+ * Generated for Kotak home page (DA project).
  *
+ * Slim helpline / promo banner carousel (e.g. "1800 4100").
  * Block table: 2 columns, N rows.
- *   row 1: block name
- *   each slide row: [ image (mandatory), text (optional) ]
- *
- * Source notes:
- *   - Slim helpline/offer banner. Each slide is `.owl-item > .owlcarousal-slide`.
- *   - Owl loop "cloned" slides are duplicates and are skipped.
- *   - Each slide is a clickable banner: `a.cursor-pointer > picture > img.slider-img`.
- *     The anchor is kept as the image cell so the slide link (href) is preserved.
- *   - These banners carry no separate text, so the text cell is left empty.
+ *  - Row 1: block name (handled by createBlock).
+ *  - Each subsequent row = one real slide: [image (wrapped in slide link if present)] | [optional text].
+ * Skips Owl Carousel ".cloned" duplicate slides.
  */
-export default function parse(element, { document }) {
-  let slideEls = Array.from(element.querySelectorAll(':scope .owl-item'));
-  if (!slideEls.length) {
-    slideEls = Array.from(element.querySelectorAll('.owlcarousal-slide'));
+
+const BASE_URL = 'https://www.kotak.bank.in';
+
+function resolveImageUrl(img) {
+  if (!img) return null;
+  const candidates = [
+    img.getAttribute('src'),
+    img.getAttribute('data-src'),
+    img.getAttribute('data-original'),
+    img.getAttribute('data-originalsrc'),
+    img.getAttribute('data-lazy-src'),
+  ];
+  const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset');
+  if (srcset) {
+    const first = srcset.split(',')[0].trim().split(/\s+/)[0];
+    if (first) candidates.push(first);
   }
+  let url = candidates.find((c) => c && !c.startsWith('data:'));
+  if (!url) return null;
+  url = url.replace(/\.transform\/[^?#]*/i, '');
+  return url;
+}
+
+function absolutize(href) {
+  if (!href) return href;
+  if (/^https?:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return href;
+  if (href.startsWith('/')) return BASE_URL + href;
+  return href;
+}
+
+export default function parse(element, { document }) {
+  let slides = Array.from(element.querySelectorAll('.owl-item:not(.cloned)'));
+  if (!slides.length) {
+    slides = Array.from(element.querySelectorAll('.owlcarousal-slide, .item'));
+  }
+  if (!slides.length) slides = [element];
 
   const cells = [];
-  const seen = new Set();
+  slides.forEach((slide) => {
+    const img = slide.querySelector('picture img, img');
+    const url = resolveImageUrl(img);
 
-  slideEls.forEach((slideEl) => {
-    if (slideEl.classList && slideEl.classList.contains('cloned')) return;
+    let imageCell = '';
+    if (url) {
+      const newImg = document.createElement('img');
+      newImg.src = url;
+      const alt = (img.getAttribute('alt') || img.getAttribute('title') || '').trim();
+      if (alt && alt.toLowerCase() !== 'image is broken') newImg.alt = alt;
 
-    const link = slideEl.querySelector('a.cursor-pointer, a[href]');
-    const picture = slideEl.querySelector('picture');
-    const img = slideEl.querySelector('img.slider-img, picture img, img');
-
-    if (!picture && !img && !link) return;
-
-    // De-duplicate by image src (guard against repeated non-cloned slides).
-    const key = (img && (img.getAttribute('src') || img.getAttribute('data-src'))) || (link && link.getAttribute('href')) || '';
-    if (key && seen.has(key)) return;
-    if (key) seen.add(key);
-
-    // Prefer the anchor (keeps the slide link); fall back to picture/img.
-    let imageCell = picture || img || '';
-    if (link && (link.querySelector('picture') || link.querySelector('img'))) {
-      imageCell = link;
+      // Preserve the slide link wrapping the image.
+      const link = slide.querySelector('a[href]');
+      if (link && link.getAttribute('href')) {
+        const a = document.createElement('a');
+        a.href = absolutize(link.getAttribute('href'));
+        a.append(newImg);
+        imageCell = a;
+      } else {
+        imageCell = newImg;
+      }
+    } else if (img) {
+      imageCell = img;
     }
 
-    cells.push([imageCell, '']);
+    // Optional text content (slim banners are usually image-only).
+    const textCell = [];
+    const heading = slide.querySelector('h1, h2, h3, [class*="title"]');
+    if (heading) textCell.push(heading);
+    const desc = slide.querySelector('p, [class*="desc"]');
+    if (desc && desc.textContent.trim()) textCell.push(desc);
+
+    if (imageCell || textCell.length) {
+      cells.push([imageCell || '', textCell.length ? textCell : '']);
+    }
   });
 
   if (!cells.length) {

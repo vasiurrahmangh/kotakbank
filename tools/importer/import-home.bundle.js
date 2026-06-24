@@ -42,31 +42,60 @@ var CustomImportScript = (() => {
   });
 
   // tools/importer/parsers/carousel-hero.js
-  function parse(element, { document }) {
-    let slideEls = Array.from(element.querySelectorAll(":scope .owl-item"));
-    if (!slideEls.length) {
-      slideEls = Array.from(element.querySelectorAll('.hero-carousel-item, .hero-slider, [class*="hero-banner"]'));
+  function resolveImageUrl(img) {
+    if (!img) return null;
+    const candidates = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-originalsrc"),
+      img.getAttribute("data-lazy-src")
+    ];
+    const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset");
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (first) candidates.push(first);
     }
+    let url = candidates.find((c) => c && !c.startsWith("data:"));
+    if (!url) return null;
+    url = url.replace(/\.transform\/[^?#]*/i, "");
+    return url;
+  }
+  function buildImage(slide, document) {
+    const img = slide.querySelector("picture img, img");
+    const url = resolveImageUrl(img);
+    if (!url) return img || null;
+    const newImg = document.createElement("img");
+    newImg.src = url;
+    const alt = img && (img.getAttribute("alt") || img.getAttribute("title")) || "";
+    if (alt) newImg.alt = alt;
+    return newImg;
+  }
+  function parse(element, { document }) {
+    let slides = Array.from(element.querySelectorAll(".owl-item:not(.cloned)"));
+    if (!slides.length) {
+      slides = Array.from(element.querySelectorAll(".hero-carousel-item, .item"));
+    }
+    if (!slides.length) slides = [element];
     const cells = [];
-    const seenTitles = /* @__PURE__ */ new Set();
-    slideEls.forEach((slideEl) => {
-      if (slideEl.classList && slideEl.classList.contains("cloned")) return;
-      slideEl.querySelectorAll(".modal, audio, .owl-nav, .owl-dots").forEach((n) => n.remove());
-      const picture = slideEl.querySelector("picture");
-      const img = slideEl.querySelector("img.hs-image, picture img, img");
-      const title = slideEl.querySelector("h1.hero-banner-title, h2.hero-banner-title, .hero-banner-title, h1, h2, h3");
-      const desc = slideEl.querySelector(".hero-banner-desc");
-      const ctas = Array.from(slideEl.querySelectorAll("a.btn, .btn-box a, a.btn-primary"));
-      if (!picture && !img && !title && !desc && !ctas.length) return;
-      const key = title && title.textContent.trim() || img && img.getAttribute("src") || "";
-      if (key && seenTitles.has(key)) return;
-      if (key) seenTitles.add(key);
-      const imageCell = picture || img || "";
+    slides.forEach((slide) => {
+      const imageCell = buildImage(slide, document);
       const contentCell = [];
-      if (title) contentCell.push(title);
+      const heading = slide.querySelector('h1, h2, h3, [class*="title"]');
+      if (heading) contentCell.push(heading);
+      const desc = slide.querySelector('.hero-banner-desc, [class*="desc"]');
       if (desc) contentCell.push(desc);
-      ctas.forEach((cta) => contentCell.push(cta));
-      cells.push([imageCell, contentCell.length ? contentCell : ""]);
+      const ctas = Array.from(slide.querySelectorAll("a.btn, .btn-box a, a.btn-primary"));
+      const seen = /* @__PURE__ */ new Set();
+      ctas.forEach((a) => {
+        if (!seen.has(a)) {
+          seen.add(a);
+          contentCell.push(a);
+        }
+      });
+      if (imageCell || contentCell.length) {
+        cells.push([imageCell || "", contentCell.length ? contentCell : ""]);
+      }
     });
     if (!cells.length) {
       element.replaceWith(...element.childNodes);
@@ -77,27 +106,68 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/parsers/carousel-banner.js
-  function parse2(element, { document }) {
-    let slideEls = Array.from(element.querySelectorAll(":scope .owl-item"));
-    if (!slideEls.length) {
-      slideEls = Array.from(element.querySelectorAll(".owlcarousal-slide"));
+  var BASE_URL = "https://www.kotak.bank.in";
+  function resolveImageUrl2(img) {
+    if (!img) return null;
+    const candidates = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-originalsrc"),
+      img.getAttribute("data-lazy-src")
+    ];
+    const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset");
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (first) candidates.push(first);
     }
+    let url = candidates.find((c) => c && !c.startsWith("data:"));
+    if (!url) return null;
+    url = url.replace(/\.transform\/[^?#]*/i, "");
+    return url;
+  }
+  function absolutize(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return href;
+    if (href.startsWith("/")) return BASE_URL + href;
+    return href;
+  }
+  function parse2(element, { document }) {
+    let slides = Array.from(element.querySelectorAll(".owl-item:not(.cloned)"));
+    if (!slides.length) {
+      slides = Array.from(element.querySelectorAll(".owlcarousal-slide, .item"));
+    }
+    if (!slides.length) slides = [element];
     const cells = [];
-    const seen = /* @__PURE__ */ new Set();
-    slideEls.forEach((slideEl) => {
-      if (slideEl.classList && slideEl.classList.contains("cloned")) return;
-      const link = slideEl.querySelector("a.cursor-pointer, a[href]");
-      const picture = slideEl.querySelector("picture");
-      const img = slideEl.querySelector("img.slider-img, picture img, img");
-      if (!picture && !img && !link) return;
-      const key = img && (img.getAttribute("src") || img.getAttribute("data-src")) || link && link.getAttribute("href") || "";
-      if (key && seen.has(key)) return;
-      if (key) seen.add(key);
-      let imageCell = picture || img || "";
-      if (link && (link.querySelector("picture") || link.querySelector("img"))) {
-        imageCell = link;
+    slides.forEach((slide) => {
+      const img = slide.querySelector("picture img, img");
+      const url = resolveImageUrl2(img);
+      let imageCell = "";
+      if (url) {
+        const newImg = document.createElement("img");
+        newImg.src = url;
+        const alt = (img.getAttribute("alt") || img.getAttribute("title") || "").trim();
+        if (alt && alt.toLowerCase() !== "image is broken") newImg.alt = alt;
+        const link = slide.querySelector("a[href]");
+        if (link && link.getAttribute("href")) {
+          const a = document.createElement("a");
+          a.href = absolutize(link.getAttribute("href"));
+          a.append(newImg);
+          imageCell = a;
+        } else {
+          imageCell = newImg;
+        }
+      } else if (img) {
+        imageCell = img;
       }
-      cells.push([imageCell, ""]);
+      const textCell = [];
+      const heading = slide.querySelector('h1, h2, h3, [class*="title"]');
+      if (heading) textCell.push(heading);
+      const desc = slide.querySelector('p, [class*="desc"]');
+      if (desc && desc.textContent.trim()) textCell.push(desc);
+      if (imageCell || textCell.length) {
+        cells.push([imageCell || "", textCell.length ? textCell : ""]);
+      }
     });
     if (!cells.length) {
       element.replaceWith(...element.childNodes);
@@ -108,124 +178,133 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/parsers/cards-product.js
-  var CARD_IMAGE_FALLBACK = {
+  var BASE_URL2 = "https://www.kotak.bank.in";
+  var IMAGE_FALLBACK = {
     "step up with the right savings account": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/everyday-sa-feature-cad-t.jpg",
-    "backing you with every swipe": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/811-super.jpeg",
     "hassle free home loans tailored for your needs!": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/home-loan-feature-card.jpg",
-    "enjoy exclusive offers with kotak credit cards": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/cc-card-358-x-201.jpg",
-    "your goals need systematic investments": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/mutual-funds-feature-card-t.jpg",
-    "save, trade, & invest smartly": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/3-in-1-trinity-t.jpg",
     "dissolving distances. powering ambitions": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/nri-services-feature-card-t.jpg",
-    "power your aspirations with personal loans": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/pl-feature-card-t.jpg",
     "power your entrepreneurial dreams": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/current-account-feature-card-t.jpg",
     "not enough funds for your business dreams?": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/business-capital-feature-card-t.jpg",
     "hausla empowered": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/bizlabs-docuseries-feature-card.jpg",
     "pay in a flash!": "https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/bhim-upi-feat-card.jpg",
     "mobile banking that keeps up with you": "https://www.kotak.bank.in/content/dam/Kotak/product_card_images/kotak-mobile-banking.jpg",
     "ask for your ckyc identifier today!": "https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/ckyc-t.jpg",
-    "join us in the #maukaganwao campaign": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/MaukaGanwao.jpg",
-    lg: "https://www.kotak.bank.in/content/dam/Kotak/deals-offers/electronics/cc-emi/lg-offer-t.jpg",
+    "lg": "https://www.kotak.bank.in/content/dam/Kotak/deals-offers/electronics/cc-emi/lg-offer-t.jpg",
     "tune in to channel red": "https://www.kotak.bank.in/content/dam/Kotak/feature-cards/Channel-Red.jpg"
   };
+  function normalizeRendition(url) {
+    if (!url) return url;
+    return url.replace(/\.transform\/[^?#]*/i, "");
+  }
+  function resolveImageUrl3(img) {
+    if (!img) return null;
+    const candidates = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-originalsrc"),
+      img.getAttribute("data-lazy-src")
+    ];
+    const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset");
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (first) candidates.push(first);
+    }
+    let url = candidates.find((c) => c && !c.startsWith("data:"));
+    if (!url) return null;
+    return normalizeRendition(url);
+  }
+  function absolutize2(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return href;
+    if (href.startsWith("/")) return BASE_URL2 + href;
+    return href;
+  }
+  function textOf(el) {
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+  }
+  function buildCard(box, column, document) {
+    const eyebrowEl = box.querySelector('.info-title, .em-sub-title, [class*="sub-title"]');
+    const headingEl = box.querySelector('h1, h2, h3, h4, h5, h6, .em-title, [class*="title"]:not(.info-title):not(.em-sub-title)');
+    const descEl = box.querySelector('.info-box, .em-desc, [class*="desc"]');
+    const ctaEl = box.querySelector("a.em-cta, .link-box a, a.em-link");
+    const eyebrowText = textOf(eyebrowEl).toLowerCase();
+    const headingText = textOf(headingEl).toLowerCase();
+    let url = resolveImageUrl3(box.querySelector("img"));
+    if (!url && column) {
+      const siblingImgs = Array.from(column.querySelectorAll(".hp-main-box img"));
+      for (const im of siblingImgs) {
+        url = resolveImageUrl3(im);
+        if (url) break;
+      }
+    }
+    if (!url) {
+      url = IMAGE_FALLBACK[headingText] || IMAGE_FALLBACK[eyebrowText] || null;
+    }
+    let imageCell = "";
+    if (url) {
+      const newImg = document.createElement("img");
+      newImg.src = url;
+      const srcImg = box.querySelector("img");
+      const alt = srcImg && (srcImg.getAttribute("alt") || srcImg.getAttribute("title")) || textOf(headingEl) || "";
+      if (alt) newImg.alt = alt;
+      imageCell = newImg;
+    }
+    const body = [];
+    if (eyebrowEl && textOf(eyebrowEl)) {
+      const p = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = textOf(eyebrowEl);
+      p.append(strong);
+      body.push(p);
+    }
+    if (headingEl && textOf(headingEl)) {
+      const h = document.createElement("h3");
+      h.textContent = textOf(headingEl);
+      body.push(h);
+    }
+    if (descEl && textOf(descEl)) {
+      const p = document.createElement("p");
+      p.textContent = textOf(descEl);
+      body.push(p);
+    }
+    if (ctaEl && textOf(ctaEl)) {
+      const a = document.createElement("a");
+      a.href = absolutize2(ctaEl.getAttribute("href"));
+      a.textContent = textOf(ctaEl);
+      body.push(a);
+    }
+    if (!imageCell && !body.length) return null;
+    return [imageCell, body.length ? body : ""];
+  }
   function parse3(element, { document }) {
+    let columns = Array.from(element.querySelectorAll(':scope .row > [class*="col-"]'));
+    if (!columns.length) {
+      columns = Array.from(element.querySelectorAll('[class*="col-md"], [class*="col-xs"]'));
+    }
     const cells = [];
-    const resolveImageUrl = (img) => {
-      if (!img) return "";
-      const candidates = [
-        img.getAttribute("src"),
-        img.getAttribute("data-src"),
-        img.getAttribute("data-original"),
-        img.getAttribute("data-originalsrc"),
-        img.getAttribute("data-lazy-src")
-      ].filter(Boolean);
-      const normalize = (u) => u ? u.replace(/\.transform\/[^?#]*/i, "") : u;
-      const real = candidates.find((u) => u && !u.startsWith("data:"));
-      if (real) return normalize(real);
-      const srcset = img.getAttribute("srcset") || img.getAttribute("data-srcset");
-      if (srcset) return normalize(srcset.split(",")[0].trim().split(/\s+/)[0]);
-      return normalize(candidates.find((u) => u && !u.startsWith("data:")) || "");
-    };
-    const boxHasImage = (box) => {
-      const img = box.querySelector("img.em-img, img.img-responsive, picture img, img");
-      return !!resolveImageUrl(img);
-    };
-    const pickBox = (boxes) => boxes.find((b) => !b.classList.contains("hidden") && boxHasImage(b)) || boxes.find((b) => boxHasImage(b)) || boxes.find((b) => !b.classList.contains("hidden")) || boxes[0];
-    const findCardImage = (card, col) => {
-      const own = card.querySelector("img.em-img, img.img-responsive, picture img, img");
-      if (own && resolveImageUrl(own)) return own;
-      if (col) {
-        const sibling = Array.from(col.querySelectorAll("img.em-img, img.img-responsive, picture img, img")).find((im) => resolveImageUrl(im));
-        if (sibling) return sibling;
+    const rateColumns = [];
+    columns.forEach((column) => {
+      if (column.querySelector(".ratecardwrapper, .ratecard")) {
+        rateColumns.push(column);
+        return;
       }
-      return own;
-    };
-    let cardEls = [];
-    const cardCols = /* @__PURE__ */ new Map();
-    const columns = Array.from(element.querySelectorAll('.col-md-4, [class*="col-4-4-4"]'));
-    if (columns.length) {
-      columns.forEach((col) => {
-        if (col.querySelector(".ratecardwrapper, .ratecard")) return;
-        const boxes = Array.from(col.querySelectorAll(".hp-main-box"));
-        const chosen = pickBox(boxes);
-        if (chosen) {
-          cardEls.push(chosen);
-          cardCols.set(chosen, col);
-        }
-      });
-    }
-    if (!cardEls.length) {
-      cardEls = Array.from(element.querySelectorAll(".hp-main-box:not(.hidden)"));
-    }
-    if (!cardEls.length) {
-      cardEls = Array.from(element.querySelectorAll('.main-white-box, [class*="card"]'));
-    }
-    cardEls.forEach((card) => {
-      const img = findCardImage(card, cardCols.get(card));
-      const eyebrow = card.querySelector(".em-sub-title, .info-title");
-      const heading = card.querySelector("h4.em-title, .em-title, h2, h3, h4, h5");
-      const desc = card.querySelector(".em-desc, .info-box");
-      const cta = card.querySelector("a.em-cta") || card.querySelector(".link-box a[href]") || card.querySelector("a.em-link:not(.link-card)");
-      if (!img && !eyebrow && !heading && !desc) return;
-      let url = img ? resolveImageUrl(img) : "";
-      let altText = img ? img.getAttribute("alt") || img.getAttribute("title") || "" : "";
-      if (!url) {
-        const headText = (heading && heading.textContent ? heading.textContent : "").trim().toLowerCase();
-        const eyebrowText = (eyebrow && eyebrow.textContent ? eyebrow.textContent : "").trim().toLowerCase();
-        url = CARD_IMAGE_FALLBACK[headText] || CARD_IMAGE_FALLBACK[eyebrowText] || "";
-        if (url && !altText) altText = (heading && heading.textContent ? heading.textContent : eyebrow && eyebrow.textContent ? eyebrow.textContent : "").trim();
-      }
-      let imageCell = "";
-      if (url) {
-        const newImg = document.createElement("img");
-        newImg.setAttribute("src", url);
-        if (altText) newImg.setAttribute("alt", altText);
-        const picture = document.createElement("picture");
-        picture.append(newImg);
-        imageCell = picture;
-      }
-      const body = [];
-      if (eyebrow) body.push(eyebrow);
-      if (heading) body.push(heading);
-      if (desc) body.push(desc);
-      if (cta) {
-        cta.querySelectorAll("i, svg").forEach((n) => n.remove());
-        body.push(cta);
-      }
-      cells.push([imageCell, body.length ? body : ""]);
+      let box = column.querySelector(".hp-main-box:not(.hidden)");
+      if (!box) box = column.querySelector(".hp-main-box");
+      if (!box) return;
+      const card = buildCard(box, column, document);
+      if (card) cells.push(card);
     });
-    const rateCol = element.querySelector(".ratecardwrapper, .ratecard");
     if (!cells.length) {
-      if (!rateCol) element.replaceWith(...element.childNodes);
       return;
     }
     const block = WebImporter.Blocks.createBlock(document, { name: "cards-product", cells });
-    if (rateCol) {
-      const rateColumn = rateCol.closest('.col-md-4, [class*="col-4-4-4"]') || rateCol;
-      const parent = rateColumn.parentNode;
-      parent.insertBefore(block, rateColumn);
-      Array.from(parent.children).forEach((child) => {
-        if (child !== block && child !== rateColumn && !child.contains(rateColumn)) {
-          child.remove();
+    if (rateColumns.length) {
+      const firstRate = rateColumns[0];
+      firstRate.parentElement.insertBefore(block, firstRate);
+      columns.forEach((column) => {
+        if (!column.querySelector(".ratecardwrapper, .ratecard") && column.isConnected) {
+          column.remove();
         }
       });
     } else {
@@ -234,66 +313,79 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/parsers/cards-help.js
-  function parse4(element, { document }) {
-    const cells = [];
-    const resolveImageUrl = (img) => {
-      if (!img) return "";
-      const candidates = [
-        img.getAttribute("src"),
-        img.getAttribute("data-src"),
-        img.getAttribute("data-original"),
-        img.getAttribute("data-lazy-src")
-      ].filter(Boolean);
-      const real = candidates.find((u) => u && !u.startsWith("data:"));
-      if (real) return real;
-      const srcset = img.getAttribute("srcset") || img.getAttribute("data-srcset");
-      if (srcset) return srcset.split(",")[0].trim().split(/\s+/)[0];
-      return candidates[0] || "";
-    };
-    let tiles = Array.from(element.querySelectorAll("a.iconsider-large-a"));
-    if (!tiles.length) {
-      tiles = Array.from(element.querySelectorAll('.iconsider-large, [class*="iconsider-large"]'));
+  var BASE_URL3 = "https://www.kotak.bank.in";
+  function resolveImageUrl4(img) {
+    if (!img) return null;
+    const candidates = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-originalsrc"),
+      img.getAttribute("data-lazy-src")
+    ];
+    const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset");
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (first) candidates.push(first);
     }
-    const seen = /* @__PURE__ */ new Set();
+    let url = candidates.find((c) => c && !c.startsWith("data:"));
+    if (!url) return null;
+    return url.replace(/\.transform\/[^?#]*/i, "");
+  }
+  function absolutize3(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return href;
+    if (href.startsWith("/")) return BASE_URL3 + href;
+    return href;
+  }
+  function textOf2(el) {
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+  }
+  function parse4(element, { document }) {
+    let tiles = Array.from(element.querySelectorAll(".owl-item:not(.cloned)"));
+    if (!tiles.length) {
+      tiles = Array.from(element.querySelectorAll(".iconsider-large, a.iconsider-large-a"));
+    }
+    const cells = [];
+    const seenTitles = /* @__PURE__ */ new Set();
     tiles.forEach((tile) => {
-      if (tile.closest(".cloned")) return;
-      const href = tile.matches("a[href]") ? tile.getAttribute("href") : tile.querySelector("a[href]") && tile.querySelector("a[href]").getAttribute("href");
-      const iconImg = tile.querySelector(".iconsider-large-img img, img");
-      const title = tile.querySelector(".iconsider-title");
-      const desc = tile.querySelector(".iconsider-dec, p");
-      if (!iconImg && !title && !desc) return;
-      const key = href || title && title.textContent.trim() || "";
-      if (key && seen.has(key)) return;
-      if (key) seen.add(key);
-      let imageCell = "";
-      if (iconImg) {
-        const url = resolveImageUrl(iconImg);
-        if (url) {
-          const newImg = document.createElement("img");
-          newImg.setAttribute("src", url);
-          const alt = title && title.textContent.trim() || iconImg.getAttribute("alt") || "";
-          if (alt) newImg.setAttribute("alt", alt);
-          const picture = document.createElement("picture");
-          picture.append(newImg);
-          imageCell = picture;
-        }
+      const img = tile.querySelector("img");
+      const url = resolveImageUrl4(img);
+      const titleEl = tile.querySelector('.iconsider-title, h1, h2, h3, h4, h5, h6, [class*="title"]');
+      const descEl = tile.querySelector('.iconsider-dec, p, [class*="dec"], [class*="desc"]');
+      const linkEl = tile.querySelector("a[href]");
+      const titleText = textOf2(titleEl);
+      if (!titleText && !url) return;
+      if (titleText && seenTitles.has(titleText)) return;
+      if (titleText) seenTitles.add(titleText);
+      let iconCell = "";
+      if (url) {
+        const newImg = document.createElement("img");
+        newImg.src = url;
+        const alt = (img.getAttribute("alt") || img.getAttribute("title") || titleText || "").trim();
+        if (alt) newImg.alt = alt;
+        iconCell = newImg;
       }
-      const textCell = [];
-      if (title) {
-        const titleText = title.textContent.trim();
+      const body = [];
+      if (titleText) {
+        const href = linkEl && linkEl.getAttribute("href");
+        const heading = document.createElement("h3");
         if (href) {
-          const link = document.createElement("a");
-          link.setAttribute("href", href);
-          link.textContent = titleText;
-          const p = document.createElement("p");
-          p.append(link);
-          textCell.push(p);
+          const a = document.createElement("a");
+          a.href = absolutize3(href);
+          a.textContent = titleText;
+          heading.append(a);
         } else {
-          textCell.push(title);
+          heading.textContent = titleText;
         }
+        body.push(heading);
       }
-      if (desc && desc.textContent.trim()) textCell.push(desc);
-      cells.push([imageCell, textCell.length ? textCell : ""]);
+      if (descEl && textOf2(descEl)) {
+        const p = document.createElement("p");
+        p.textContent = textOf2(descEl);
+        body.push(p);
+      }
+      cells.push([iconCell, body.length ? body : ""]);
     });
     if (!cells.length) {
       element.replaceWith(...element.childNodes);
@@ -304,101 +396,195 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/parsers/columns-media.js
+  var BASE_URL4 = "https://www.kotak.bank.in";
+  function resolveImageUrl5(img) {
+    if (!img) return null;
+    const candidates = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-originalsrc"),
+      img.getAttribute("data-lazy-src")
+    ];
+    const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset");
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (first) candidates.push(first);
+    }
+    let url = candidates.find((c) => c && !c.startsWith("data:"));
+    if (!url) return null;
+    return url.replace(/\.transform\/[^?#]*/i, "");
+  }
+  function absolutize4(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return href;
+    if (href.startsWith("/")) return BASE_URL4 + href;
+    return href;
+  }
+  function textOf3(el) {
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+  }
+  function enclosingLink(el, column) {
+    let node = el.parentElement;
+    while (node && node !== column) {
+      if (node.tagName === "A" && node.getAttribute("href")) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+  function extractColumn(column, document) {
+    const content = [];
+    const usedTexts = /* @__PURE__ */ new Set();
+    const usedImgUrls = /* @__PURE__ */ new Set();
+    column.querySelectorAll("img").forEach((img) => {
+      if (img.closest(".mf-list-item, .mf-list, li") || img.classList.contains("mf-list-icon")) return;
+      const url = resolveImageUrl5(img);
+      if (!url || usedImgUrls.has(url)) return;
+      usedImgUrls.add(url);
+      const newImg = document.createElement("img");
+      newImg.src = url;
+      const alt = (img.getAttribute("alt") || img.getAttribute("title") || "").trim();
+      if (alt) newImg.alt = alt;
+      const link = enclosingLink(img, column);
+      if (link) {
+        const a = document.createElement("a");
+        a.href = absolutize4(link.getAttribute("href"));
+        a.append(newImg);
+        content.push(a);
+      } else {
+        content.push(newImg);
+      }
+    });
+    column.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
+      const t = textOf3(h);
+      if (!t || usedTexts.has(t)) return;
+      usedTexts.add(t);
+      const heading = document.createElement(h.tagName.toLowerCase());
+      heading.textContent = t;
+      content.push(heading);
+    });
+    column.querySelectorAll("p").forEach((p) => {
+      const t = textOf3(p);
+      if (!t || usedTexts.has(t)) return;
+      if (p.querySelector("a") && p.textContent.replace(/\s+/g, "") === (p.querySelector("a").textContent || "").replace(/\s+/g, "")) return;
+      usedTexts.add(t);
+      const para = document.createElement("p");
+      para.textContent = t;
+      content.push(para);
+    });
+    column.querySelectorAll("a[href]").forEach((a) => {
+      const t = textOf3(a);
+      if (!t) return;
+      if (a.querySelector("h1, h2, h3, h4, h5, h6") || a.querySelector("p + p")) return;
+      if (usedTexts.has(t)) return;
+      const key = `${t}|${a.getAttribute("href")}`;
+      if (usedTexts.has(key)) return;
+      usedTexts.add(key);
+      const link = document.createElement("a");
+      link.href = absolutize4(a.getAttribute("href"));
+      link.textContent = t;
+      content.push(link);
+    });
+    return content;
+  }
   function parse5(element, { document }) {
-    const resolveImageUrl = (img) => {
-      if (!img) return "";
-      const candidates = [
-        img.getAttribute("src"),
-        img.getAttribute("data-src"),
-        img.getAttribute("data-original"),
-        img.getAttribute("data-lazy-src")
-      ].filter(Boolean);
-      const real = candidates.find((u) => u && !u.startsWith("data:"));
-      if (real) return real;
-      const srcset = img.getAttribute("srcset") || img.getAttribute("data-srcset");
-      if (srcset) return srcset.split(",")[0].trim().split(/\s+/)[0];
-      return candidates.find((u) => u && !u.startsWith("data:")) || "";
-    };
-    const cleanColumn = (col) => {
-      col.querySelectorAll("link, style, script, input, .owl-nav, .owl-dots").forEach((n) => n.remove());
-      col.querySelectorAll("img").forEach((img) => {
-        const url = resolveImageUrl(img);
-        if (url) {
-          img.setAttribute("src", url);
-        } else {
-          img.remove();
-        }
-        img.removeAttribute("data-src");
-        img.removeAttribute("data-srcset");
-        img.removeAttribute("srcset");
-      });
-      col.querySelectorAll("a").forEach((a) => {
-        if (!a.textContent.trim() && !a.querySelector("img, picture, video, iframe")) a.remove();
-      });
-      return col;
-    };
-    let columns = [];
-    const row = element.querySelector(":scope .row") || element.querySelector(".row");
-    if (row) {
-      columns = Array.from(row.children).filter((c) => /\bcol-/.test(c.className) || c.children.length);
-    }
+    const row = element.querySelector('.row, [class*="row"]') || element;
+    let columns = Array.from(row.querySelectorAll(':scope > [class*="col-"]'));
     if (!columns.length) {
-      columns = Array.from(element.querySelectorAll(":scope > div"));
+      columns = Array.from(element.querySelectorAll('[class*="col-md"], [class*="col-sm"]'));
     }
-    const cellRow = columns.map((col) => cleanColumn(col.cloneNode(true))).filter((col) => col.textContent.trim() || col.querySelector("img, picture, video, iframe, a"));
-    if (!cellRow.length) {
+    if (!columns.length) columns = [element];
+    const rowCells = [];
+    columns.forEach((column) => {
+      const content = extractColumn(column, document);
+      rowCells.push(content.length ? content : "");
+    });
+    if (!rowCells.some((c) => c && c !== "")) {
       element.replaceWith(...element.childNodes);
       return;
     }
-    const cells = [cellRow];
+    const cells = [rowCells];
     const block = WebImporter.Blocks.createBlock(document, { name: "columns-media", cells });
     element.replaceWith(block);
   }
 
   // tools/importer/parsers/tabs-rates.js
-  function parse6(element, { document }) {
-    let scope = element;
-    let rateCards = Array.from(scope.querySelectorAll(".ratecard.section"));
-    if (!rateCards.length) {
-      const wrapper = element.querySelector(".ratecardwrapper") || (document.querySelector ? document.querySelector(".ratecardwrapper") : null);
-      if (wrapper) {
-        scope = wrapper;
-        rateCards = Array.from(wrapper.querySelectorAll(".ratecard.section"));
+  var BASE_URL5 = "https://www.kotak.bank.in";
+  function absolutize5(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return href;
+    if (href.startsWith("/")) return BASE_URL5 + href;
+    return href;
+  }
+  function textOf4(el) {
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+  }
+  function tabLabel(card) {
+    const header = card.querySelector('h2, .target, [class*="title"]');
+    if (!header) return "";
+    const anchor = header.querySelector("a") || header;
+    const direct = Array.from(anchor.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent.replace(/\s+/g, " ").trim()).join(" ").trim();
+    return direct || textOf4(anchor);
+  }
+  function tabContent(card, document) {
+    const out = [];
+    const panel = card.querySelector('.toggle-ctnt, [class*="toggle"]') || card;
+    panel.querySelectorAll("p").forEach((p) => {
+      const t = textOf4(p);
+      if (!t) return;
+      const rateEl = p.querySelector('.FR, [class*="FR"], span');
+      const linkEl = p.querySelector("a[href]");
+      if (rateEl && linkEl) {
+        const para = document.createElement("p");
+        const rate = document.createElement("strong");
+        rate.textContent = textOf4(rateEl);
+        para.append(rate);
+        para.append(document.createTextNode(" "));
+        const a = document.createElement("a");
+        a.href = absolutize5(linkEl.getAttribute("href"));
+        a.textContent = textOf4(linkEl);
+        para.append(a);
+        out.push(para);
+      } else if (p.querySelector("strong") && t) {
+        const para = document.createElement("p");
+        const strong = document.createElement("strong");
+        strong.textContent = t;
+        para.append(strong);
+        out.push(para);
+      } else if (linkEl) {
+        const a = document.createElement("a");
+        a.href = absolutize5(linkEl.getAttribute("href"));
+        a.textContent = t;
+        out.push(a);
+      } else {
+        const para = document.createElement("p");
+        para.textContent = t;
+        out.push(para);
       }
-    }
-    if (!rateCards.length) {
-      rateCards = Array.from(scope.querySelectorAll(".rate-card, .ratecard"));
-    }
-    const seeAll = scope.querySelector('.link-box a[href]:not([href^="javascript"])');
-    const cells = [];
-    rateCards.forEach((card, idx) => {
-      const labelEl = card.querySelector("h2.target, h2, .target");
-      const panel = card.querySelector(".toggle-ctnt, .block");
-      let labelText = "";
-      if (labelEl) {
-        const clone = labelEl.cloneNode(true);
-        clone.querySelectorAll("figure, img, i, svg").forEach((n) => n.remove());
-        labelText = clone.textContent.replace(/\s+/g, " ").trim();
-      }
-      const label = document.createElement("p");
-      label.textContent = labelText || `Tab ${idx + 1}`;
-      const contentCell = [];
-      if (panel) {
-        const panelClone = panel.cloneNode(true);
-        panelClone.querySelectorAll("script, style, link, input, i, svg").forEach((n) => n.remove());
-        contentCell.push(panelClone);
-      }
-      if (idx === rateCards.length - 1 && seeAll) {
-        const link = document.createElement("a");
-        link.setAttribute("href", seeAll.getAttribute("href"));
-        link.textContent = seeAll.textContent.replace(/\s+/g, " ").trim() || "See all rates";
-        const p = document.createElement("p");
-        p.append(link);
-        contentCell.push(p);
-      }
-      if (!labelText && !contentCell.length) return;
-      cells.push([label, contentCell.length ? contentCell : ""]);
     });
+    return out;
+  }
+  function parse6(element, { document }) {
+    const cards = Array.from(element.querySelectorAll(".ratecard.section, .ratecard"));
+    const cells = [];
+    cards.forEach((card) => {
+      const label = tabLabel(card);
+      const content = tabContent(card, document);
+      if (!label && !content.length) return;
+      cells.push([label || "", content.length ? content : ""]);
+    });
+    const seeAll = element.querySelector(".main-white-box > .link-box a[href], .link-box a[href]");
+    if (seeAll && cells.length) {
+      const a = document.createElement("a");
+      a.href = absolutize5(seeAll.getAttribute("href"));
+      a.textContent = textOf4(seeAll);
+      const lastContent = cells[cells.length - 1][1];
+      if (Array.isArray(lastContent)) {
+        lastContent.push(a);
+      } else {
+        cells[cells.length - 1][1] = [a];
+      }
+    }
     if (!cells.length) {
       element.replaceWith(...element.childNodes);
       return;
@@ -408,168 +594,132 @@ var CustomImportScript = (() => {
   }
 
   // tools/importer/transformers/kotak-cleanup.js
-  var TransformHook = {
-    beforeTransform: "beforeTransform",
-    afterTransform: "afterTransform"
-  };
+  var TransformHook = { beforeTransform: "beforeTransform", afterTransform: "afterTransform" };
+  function isPlaceholderSrc(src) {
+    if (!src) return true;
+    const s = src.trim();
+    if (s === "") return true;
+    if (s.startsWith("data:")) return true;
+    if (/(blank|placeholder|spacer|1x1|transparent)\.(gif|png|svg)(\?|$)/i.test(s)) return true;
+    return false;
+  }
+  function firstFromSrcset(srcset) {
+    if (!srcset) return "";
+    const first = srcset.split(",")[0];
+    if (!first) return "";
+    return first.trim().split(/\s+/)[0] || "";
+  }
+  function normalizeRenditionUrl(url) {
+    if (!url) return url;
+    const m = url.match(/^(.*\.(?:jpe?g|png|webp|gif|svg))\.transform\/[^?#]*$/i);
+    return m ? m[1] : url;
+  }
+  function promoteLazyImages(element) {
+    element.querySelectorAll("img").forEach((img) => {
+      const currentSrc = img.getAttribute("src");
+      let resolved = "";
+      if (!isPlaceholderSrc(currentSrc)) {
+        resolved = currentSrc;
+      } else {
+        resolved = img.getAttribute("data-originalsrc") || img.getAttribute("data-src") || firstFromSrcset(img.getAttribute("data-srcset")) || firstFromSrcset(img.getAttribute("srcset")) || "";
+      }
+      resolved = normalizeRenditionUrl((resolved || "").trim());
+      if (resolved) {
+        img.setAttribute("src", resolved);
+        img.removeAttribute("data-originalsrc");
+        img.removeAttribute("data-src");
+        img.removeAttribute("data-srcset");
+        img.removeAttribute("srcset");
+        img.removeAttribute("sizes");
+      } else if (isPlaceholderSrc(currentSrc)) {
+        img.remove();
+      }
+    });
+  }
   function transform(hookName, element, payload) {
     if (hookName === TransformHook.beforeTransform) {
+      promoteLazyImages(element);
       WebImporter.DOMUtils.remove(element, [
-        "#search-modal",
-        "#audioPopupShow",
-        ".modal.fade",
-        "#fade"
+        ".search-modal-popup",
+        ".success-modal",
+        ".get-help-popup",
+        "audio",
+        "#my_audio_hero"
       ]);
+      WebImporter.DOMUtils.remove(element, [
+        "#notification_widget",
+        '[id^="modal-widget-"]',
+        "#unica-icon",
+        ".notificationWidgetId",
+        ".unica-personlization-widget-cta"
+      ]);
+      WebImporter.DOMUtils.remove(element, ['[id*="DmpSlotId"]']);
       element.querySelectorAll(".owl-item.cloned").forEach((el) => el.remove());
-      element.querySelectorAll("input").forEach((el) => el.remove());
-      const LAZY_SRC_ATTRS = ["data-originalsrc", "data-src", "data-original", "data-lazy-src"];
-      const normalizeRendition = (u) => u ? u.replace(/\.transform\/[^?#]*/i, "") : u;
-      element.querySelectorAll("img").forEach((img) => {
-        const src = img.getAttribute("src") || "";
-        const hasRealSrc = src.trim() !== "" && !src.startsWith("data:");
-        if (hasRealSrc) {
-          img.setAttribute("src", normalizeRendition(src));
-          return;
-        }
-        let resolved = "";
-        LAZY_SRC_ATTRS.some((attr) => {
-          const v = img.getAttribute(attr);
-          if (v && v.trim() !== "" && !v.trim().startsWith("data:")) {
-            resolved = v.trim();
-            return true;
-          }
-          return false;
-        });
-        if (!resolved) {
-          const srcset = img.getAttribute("data-srcset") || img.getAttribute("srcset") || "";
-          if (srcset) resolved = srcset.split(",")[0].trim().split(/\s+/)[0];
-        }
-        if (resolved) img.setAttribute("src", normalizeRendition(resolved));
-      });
     }
     if (hookName === TransformHook.afterTransform) {
       WebImporter.DOMUtils.remove(element, [
-        // Notification / maintenance widget at top of body.
-        '[id^="modal-widget-"]',
-        "#notification_widget",
-        ".notificationWidgetId",
-        // Global site header / navigation.
-        "header.header-container",
+        "header",
+        ".header-container",
         ".mobile-header-container",
-        // Mobile bottom tab bar ("Home / Learn / Help / Get App").
         ".headerfooter-container",
-        // Global site footer.
-        "footer.footer",
-        // Loader overlay.
+        "nav",
+        "footer",
+        ".footer",
+        "#notification_widget",
+        '[id^="modal-widget-"]',
+        ".notificationWidgetId",
+        ".success-modal",
+        ".get-help-popup",
+        ".modal.fade",
         "#fade",
-        // DMP / ad slot placeholders (e.g. <div id="bp_6088_DmpSlotId134">).
-        '[id^="bp_"][id*="DmpSlotId"]',
-        // Non-content scaffolding / scripts / tracking.
+        '[id*="DmpSlotId"]',
         "link",
         "style",
         "script",
         "noscript",
         "iframe",
-        "audio"
+        'input[type="hidden"]'
       ]);
+      element.querySelectorAll(
+        "ul.header-menu-ul, ul.mb-menu-ul, .header-menu, .mb-menu, .sec-footer-list-box"
+      ).forEach((el) => el.remove());
       element.querySelectorAll("*").forEach((el) => {
         el.removeAttribute("data-sly-test");
         el.removeAttribute("data-sly-list");
-        el.removeAttribute("data-hem-burager");
-        el.removeAttribute("data-ic-target");
+        el.removeAttribute("data-sly-use");
         el.removeAttribute("data-mb-lilevel");
-        el.removeAttribute("data-size");
-      });
-      const LAZY_ATTRS = ["data-srcset", "data-originalsrc", "data-src", "data-original", "data-lazy-src", "srcset"];
-      const hasLazyUrl = (img) => LAZY_ATTRS.some((attr) => {
-        const v = img.getAttribute(attr);
-        return v && v.trim() !== "" && !v.trim().startsWith("data:");
-      });
-      element.querySelectorAll("img").forEach((img) => {
-        const src = img.getAttribute("src") || "";
-        const isEmpty = src.trim() === "";
-        const isInlineSvg = src.startsWith("data:image/svg+xml");
-        if ((isEmpty || isInlineSvg) && !hasLazyUrl(img)) {
-          img.remove();
-        }
+        el.removeAttribute("data-ic-target");
+        el.removeAttribute("data-hem-burager");
+        el.removeAttribute("onclick");
       });
     }
   }
 
   // tools/importer/transformers/kotak-sections.js
-  var TransformHook2 = {
-    beforeTransform: "beforeTransform",
-    afterTransform: "afterTransform"
-  };
+  var TransformHook2 = { beforeTransform: "beforeTransform", afterTransform: "afterTransform" };
   function transform2(hookName, element, payload) {
     if (hookName === TransformHook2.afterTransform) {
-      const template = payload && payload.template;
-      const sections = template && Array.isArray(template.sections) ? template.sections : [];
-      if (sections.length < 2) {
-        return;
-      }
+      const sections = payload && payload.template && Array.isArray(payload.template.sections) ? payload.template.sections : [];
+      if (sections.length < 2) return;
       const doc = element.ownerDocument;
-      const resolveSectionEl = (section) => {
-        if (!section || !section.selector) return null;
-        let el = null;
-        try {
-          el = doc.querySelector(section.selector);
-        } catch (e) {
-          el = null;
-        }
-        if (el) return el;
-        const parts = section.selector.split(">").map((p) => p.trim()).filter(Boolean);
-        const last = parts[parts.length - 1];
-        if (!last) return null;
-        const nthMatch = last.match(/:nth-of-type\((\d+)\)\s*$/);
-        const nth = nthMatch ? parseInt(nthMatch[1], 10) : null;
-        const base = last.replace(/:nth-of-type\(\d+\)\s*$/, "").trim();
-        let scope = element;
-        for (let p = parts.length - 1; p >= 1; p -= 1) {
-          const prefix = parts.slice(0, p).join(" > ");
-          try {
-            const found = doc.querySelector(prefix) || element.querySelector(prefix.replace(/^body\s*>?\s*/, ""));
-            if (found) {
-              scope = found;
-              break;
-            }
-          } catch (e) {
-          }
-        }
-        let candidates = [];
-        try {
-          candidates = Array.from(scope.children).filter((c) => c.matches(base));
-        } catch (e) {
-          candidates = [];
-        }
-        if (candidates.length === 0) {
-          try {
-            candidates = Array.from(scope.querySelectorAll(base));
-          } catch (e) {
-            candidates = [];
-          }
-        }
-        if (candidates.length === 0) return null;
-        const idx = nth ? nth - 1 : 0;
-        return candidates[idx] || null;
-      };
-      for (let i = sections.length - 1; i >= 0; i -= 1) {
-        const section = sections[i];
-        const sectionEl = resolveSectionEl(section);
-        if (!sectionEl) {
-          continue;
-        }
-        if (section.style) {
-          const meta = WebImporter.Blocks.createBlock(doc, {
-            name: "Section Metadata",
-            cells: { style: section.style }
-          });
-          sectionEl.parentNode.insertBefore(meta, sectionEl.nextSibling);
-        }
-        if (i > 0) {
-          const hr = doc.createElement("hr");
-          sectionEl.parentNode.insertBefore(hr, sectionEl);
-        }
+      const VARIANT_CLASSES = [
+        "carousel-hero",
+        "carousel-banner",
+        "cards-product",
+        "cards-help",
+        "columns-media",
+        "tabs-rates"
+      ];
+      const blockTables = Array.from(
+        element.querySelectorAll(VARIANT_CLASSES.map((c) => `.${c}`).join(","))
+      );
+      if (blockTables.length < 2) return;
+      for (let i = blockTables.length - 1; i >= 1; i -= 1) {
+        const target = blockTables[i];
+        const prev = target.previousElementSibling;
+        if (prev && prev.tagName === "HR") continue;
+        const hr = doc.createElement("hr");
+        target.parentNode.insertBefore(hr, target);
       }
     }
   }
@@ -585,15 +735,10 @@ var CustomImportScript = (() => {
   };
   var PAGE_TEMPLATE = {
     name: "home",
-    description: "Kotak Mahindra Bank home page: hero carousel, product card grid, helpline banner carousel, video/Hausla section, Knowledge Hub, Need Help cards, app/promo cards, Rates & Charges, footer link lists",
-    urls: [
-      "https://www.kotak.bank.in/en/home.html"
-    ],
+    description: "Kotak Mahindra Bank home page",
+    urls: ["https://www.kotak.bank.in/en/home.html"],
     blocks: [
-      {
-        name: "carousel-hero",
-        instances: [".heroslider.section"]
-      },
+      { name: "carousel-hero", instances: [".heroslider.section"] },
       {
         name: "cards-product",
         instances: [
@@ -603,107 +748,25 @@ var CustomImportScript = (() => {
           ".white-background > div:nth-child(9)"
         ]
       },
-      {
-        name: "carousel-banner",
-        instances: [".white-background > div.thincarousalbanner.section"]
-      },
+      { name: "carousel-banner", instances: [".white-background > div.thincarousalbanner.section"] },
       {
         name: "columns-media",
-        instances: [
-          ".white-background > div:nth-child(4)",
-          ".white-background > div:nth-child(6)"
-        ]
+        instances: [".white-background > div:nth-child(4)", ".white-background > div:nth-child(6)"]
       },
-      {
-        name: "cards-help",
-        instances: [".white-background > div:nth-child(7)"]
-      },
-      {
-        name: "tabs-rates",
-        instances: [".white-background > div:nth-child(9) .ratecardwrapper.section"]
-      }
+      { name: "cards-help", instances: [".white-background > div:nth-child(7)"] },
+      { name: "tabs-rates", instances: [".white-background > div:nth-child(9) .ratecardwrapper.section"] }
     ],
     sections: [
-      {
-        id: "section-1",
-        name: "Hero carousel",
-        selector: ".heroslider.section",
-        style: null,
-        blocks: ["carousel-hero"],
-        defaultContent: []
-      },
-      {
-        id: "section-2",
-        name: "Product card grid (row 1)",
-        selector: ".white-background > div:nth-child(1)",
-        style: null,
-        blocks: ["cards-product"],
-        defaultContent: []
-      },
-      {
-        id: "section-3",
-        name: "Product card grid (row 2)",
-        selector: ".white-background > div:nth-child(2)",
-        style: null,
-        blocks: ["cards-product"],
-        defaultContent: []
-      },
-      {
-        id: "section-4",
-        name: "Helpline banner carousel",
-        selector: ".white-background > div.thincarousalbanner.section",
-        style: null,
-        blocks: ["carousel-banner"],
-        defaultContent: []
-      },
-      {
-        id: "section-5",
-        name: "Video + Hausla text",
-        selector: ".white-background > div:nth-child(4)",
-        style: null,
-        blocks: ["columns-media"],
-        defaultContent: []
-      },
-      {
-        id: "section-6",
-        name: "Knowledge Hub heading",
-        selector: ".white-background > div:nth-child(5)",
-        style: null,
-        blocks: [],
-        defaultContent: [".white-background > div:nth-child(5)"]
-      },
-      {
-        id: "section-7",
-        name: "Knowledge Hub content",
-        selector: ".white-background > div:nth-child(6)",
-        style: null,
-        blocks: ["columns-media"],
-        defaultContent: []
-      },
-      {
-        id: "section-8",
-        name: "Need Help",
-        selector: ".white-background > div:nth-child(7)",
-        style: null,
-        blocks: ["cards-help"],
-        defaultContent: []
-      },
-      {
-        id: "section-9",
-        name: "App/promo cards (row 1)",
-        selector: ".white-background > div:nth-child(8)",
-        style: null,
-        blocks: ["cards-product"],
-        defaultContent: []
-      },
-      {
-        id: "section-10",
-        name: "App/promo cards (row 2) + Rates & Charges",
-        selector: ".white-background > div:nth-child(9)",
-        style: null,
-        blocks: ["cards-product", "tabs-rates"],
-        defaultContent: []
-      }
+      { id: "section-1", name: "Hero carousel", selector: ".heroslider.section", style: null, blocks: ["carousel-hero"], defaultContent: [] },
+      { id: "section-2", name: "Product card grid (row 1)", selector: ".white-background > div:nth-child(1)", style: null, blocks: ["cards-product"], defaultContent: [] },
+      { id: "section-3", name: "Product card grid (row 2)", selector: ".white-background > div:nth-child(2)", style: null, blocks: ["cards-product"], defaultContent: [] },
+      { id: "section-4", name: "Helpline banner carousel", selector: ".white-background > div.thincarousalbanner.section", style: null, blocks: ["carousel-banner"], defaultContent: [] },
+      { id: "section-5", name: "Video + Hausla text", selector: ".white-background > div:nth-child(4)", style: null, blocks: ["columns-media"], defaultContent: [] },
+      { id: "section-6", name: "Knowledge Hub heading", selector: ".white-background > div:nth-child(5)", style: null, blocks: [], defaultContent: [".white-background > div:nth-child(5)"] },
+      { id: "section-7", name: "Knowledge Hub content", selector: ".white-background > div:nth-child(6)", style: null, blocks: ["columns-media"], defaultContent: [] },
+      { id: "section-8", name: "Need Help", selector: ".white-background > div:nth-child(7)", style: null, blocks: ["cards-help"], defaultContent: [] },
+      { id: "section-9", name: "App/promo cards (row 1)", selector: ".white-background > div:nth-child(8)", style: null, blocks: ["cards-product"], defaultContent: [] },
+      { id: "section-10", name: "App/promo cards (row 2) + Rates & Charges", selector: ".white-background > div:nth-child(9)", style: null, blocks: ["cards-product", "tabs-rates"], defaultContent: [] }
     ]
   };
   var transformers = [
@@ -711,9 +774,7 @@ var CustomImportScript = (() => {
     ...PAGE_TEMPLATE.sections && PAGE_TEMPLATE.sections.length > 1 ? [transform2] : []
   ];
   function executeTransformers(hookName, element, payload) {
-    const enhancedPayload = __spreadProps(__spreadValues({}, payload), {
-      template: PAGE_TEMPLATE
-    });
+    const enhancedPayload = __spreadProps(__spreadValues({}, payload), { template: PAGE_TEMPLATE });
     transformers.forEach((transformerFn) => {
       try {
         transformerFn.call(null, hookName, element, enhancedPayload);
@@ -731,52 +792,17 @@ var CustomImportScript = (() => {
           console.warn(`Block "${blockDef.name}" selector not found: ${selector}`);
         }
         elements.forEach((element) => {
-          pageBlocks.push({
-            name: blockDef.name,
-            selector,
-            element,
-            section: blockDef.section || null
-          });
+          pageBlocks.push({ name: blockDef.name, selector, element, section: blockDef.section || null });
         });
       });
     });
     console.log(`Found ${pageBlocks.length} block instances on page`);
     return pageBlocks;
   }
-  function forceLazyImages(root) {
-    const normalize = (u) => u ? u.replace(/\.transform\/[^?#]*/i, "") : u;
-    const firstUrl = (srcset) => srcset ? normalize(srcset.split(",")[0].trim().split(/\s+/)[0]) : "";
-    root.querySelectorAll("source").forEach((source) => {
-      const ss = source.getAttribute("srcset") || "";
-      const dss = source.getAttribute("data-srcset") || "";
-      if ((!ss || ss.trim() === "") && dss) source.setAttribute("srcset", firstUrl(dss));
-      else if (ss) source.setAttribute("srcset", firstUrl(ss));
-    });
-    root.querySelectorAll("img").forEach((img) => {
-      const src = img.getAttribute("src") || "";
-      const hasRealSrc = src.trim() !== "" && !src.startsWith("data:");
-      if (hasRealSrc) {
-        img.setAttribute("src", normalize(src));
-        return;
-      }
-      let resolved = "";
-      ["data-originalsrc", "data-src", "data-original", "data-lazy-src"].some((attr) => {
-        const v = img.getAttribute(attr);
-        if (v && v.trim() !== "" && !v.trim().startsWith("data:")) {
-          resolved = v.trim();
-          return true;
-        }
-        return false;
-      });
-      if (!resolved) resolved = firstUrl(img.getAttribute("data-srcset") || img.getAttribute("srcset") || "");
-      if (resolved) img.setAttribute("src", normalize(resolved));
-    });
-  }
   var import_home_default = {
     transform: (payload) => {
-      const { document, url, html, params } = payload;
+      const { document, url, params } = payload;
       const main = document.body;
-      forceLazyImages(main);
       executeTransformers("beforeTransform", main, payload);
       const pageBlocks = findBlocksOnPage(document, PAGE_TEMPLATE);
       pageBlocks.forEach((block) => {

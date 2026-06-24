@@ -1,33 +1,224 @@
+/* columns-media -- 2-column media + content block (Knowledge Hub & Video/Hausla) */
+
 .columns-media > div {
   display: flex;
   flex-direction: column;
+  gap: 24px;
 }
 
 .columns-media img {
   width: 100%;
-}
-
-.columns-media > div > div {
-  order: 1;
-}
-
-.columns-media > div > .columns-media-img-col {
-  order: 0;
-}
-
-.columns-media > div > .columns-media-img-col img {
   display: block;
 }
 
+/* generic columns share equal width by default */
+.columns-media > div > div {
+  min-width: 0;
+}
+
+/* ---------- Featured media card (image with overlaid title/label/CTA) ---------- */
+.columns-media .columns-media-feature {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.columns-media .columns-media-feature-media {
+  margin: 0;
+  line-height: 0;
+}
+
+.columns-media .columns-media-feature-media img,
+.columns-media .columns-media-feature-media picture {
+  display: block;
+  width: 100%;
+}
+
+.columns-media .columns-media-feature-media img {
+  aspect-ratio: 750 / 460;
+  object-fit: cover;
+}
+
+.columns-media .columns-media-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 30px 30px;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 50%) 45%);
+  color: #fff;
+}
+
+/* label (e.g. "Stories in focus") -- appears above the title */
+.columns-media .columns-media-overlay p {
+  order: 1;
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.columns-media .columns-media-overlay h4 {
+  order: 2;
+  margin: 0 0 15px;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+/* "Read more" CTA -- appears below the title */
+.columns-media-overlay p:last-child {
+  order: 3;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.columns-media-overlay a,
+.columns-media-overlay a:any-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.columns-media .columns-media-overlay a::after {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--brand-red, #e4002b) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>') center / 10px no-repeat;
+  flex: 0 0 auto;
+}
+
+/* ---------- Text column (e.g. Hausla heading + paragraph) ---------- */
+.columns-media .columns-media-text p {
+  color: #3d3d3d;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.columns-media .columns-media-text h1,
+.columns-media .columns-media-text h2,
+.columns-media .columns-media-text h3,
+.columns-media .columns-media-text h4 {
+  margin-top: 0;
+}
+
+/* ---------- Stories-in-focus list column ---------- */
+.columns-media .columns-media-list > p {
+  margin: 0;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--light-grey-bg, #ececed);
+}
+
+.columns-media .columns-media-list > p > a,
+.columns-media .columns-media-list > p > a:any-link {
+  color: var(--brand-navy, #0f3464);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+.columns-media .columns-media-list > p > a:hover {
+  text-decoration: underline;
+}
+
+/* heading "Stories in focus" -- first paragraph */
+.columns-media .columns-media-list > p:first-child {
+  margin: 0 0 12px;
+  padding-top: 0;
+  border-bottom: 0;
+  color: #101010;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* "View all stories" -- last link, red with arrow */
+.columns-media .columns-media-list > p:last-child {
+  border-bottom: 0;
+}
+
+.columns-media .columns-media-list > p:last-child > a,
+.columns-media .columns-media-list > p:last-child > a:any-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand-red, #e4002b);
+  font-weight: 400;
+}
+
+.columns-media .columns-media-list > p:last-child > a::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--brand-red, #e4002b) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>') center / 9px no-repeat;
+  flex: 0 0 auto;
+}
+
+/* ---------- Video poster column ---------- */
+.columns-media .columns-media-video,
+.columns-media .columns-media-img-col {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.columns-media .columns-media-img-col img {
+  aspect-ratio: 750 / 460;
+  object-fit: cover;
+}
+
+.columns-media .columns-media-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+}
+
+.columns-media .columns-media-play::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 12px 0 12px 20px;
+  border-color: transparent transparent transparent #fff;
+  transform: translateX(3px);
+}
+
+/* ---------- Desktop layout ---------- */
 @media (width >= 900px) {
   .columns-media > div {
-    align-items: center;
-    flex-direction: unset;
-    gap: 24px;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 30px;
   }
 
-  .columns-media > div > div {
-    flex: 1;
-    order: unset;
+  /* featured / video column ~66.7%, list / text column ~33.3% */
+  .columns-media > div > div:first-child {
+    flex: 0 0 66.66%;
+  }
+
+  .columns-media > div > div:last-child {
+    flex: 1 1 33.33%;
+  }
+
+  .columns-media .columns-media-text p {
+    font-size: 23px;
+    line-height: 25.3px;
   }
 }

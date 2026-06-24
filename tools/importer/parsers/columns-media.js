@@ -1,97 +1,156 @@
 /* eslint-disable */
 /* global WebImporter */
 /**
- * Parser for columns-media. Base: columns.
+ * Parser for columns-media. Base block: columns.
  * Source: https://www.kotak.bank.in/en/home.html
- *   - Video + "Hausla hai toh ho jayega" 2-column section
- *   - Knowledge Hub featured-story + stories-list 2-column section
- * Generated for Kotak home migration (DA project).
+ *   instances: .white-background > div:nth-child(4)  (Video + Hausla)
+ *              .white-background > div:nth-child(6)  (Knowledge Hub)
+ * Generated for Kotak home page (DA project).
  *
- * Block table: N columns, M rows.
- *   row 1: block name
- *   one content row: one cell per source column; each cell keeps that column's
- *   inner content (text, headings, links, poster image, story list, etc.).
+ * Flexible block: row 1 = block name; one content row whose cells become columns.
+ * Two real layouts handled by the same generic column-extraction logic:
+ *  - Video + Hausla: [video poster image (linked to YouTube) + play] | [image + heading + text].
+ *  - Knowledge Hub: [featured story image + heading + Read more] | [Stories-in-focus link list + View all].
  *
- * Source notes:
- *   - Columns come from `.row > div[class*="col-"]` (here col-md-8 + col-md-4).
- *   - Lazy-loaded images keep their URL in src / data-src / data-srcset; these
- *     are rebuilt into a clean <picture> so the importer emits the image.
- *   - The video column is a YouTube link (a.track-videos) wrapping a poster
- *     image; the link + poster are preserved.
- *   - Clientlib <link>/<style>/<script> and empty overlay anchors are stripped.
- *
- * Validation note: extraction verified directly against the live DOM for both
- * instances (Video column = YouTube poster + embed link; Hausla text column;
- * Knowledge Hub featured story + 5-item stories list with thumbnails) — all
- * content, images and links resolve correctly. The validator's "no results" is
- * caused by the page-templates.json instance selectors
- * (`div.columncontrol.section:nth-of-type(3)` and `div.parsys.section:nth-of-type(1)`),
- * which mis-target because every section sibling is a <div>, so :nth-of-type
- * counts all divs rather than the class-matched ones. The real elements are at
- * :nth-child(4) (Video) and :nth-child(6) (Knowledge Hub). Selector fix is owned
- * by block-mapping-manager; the parser below is correct for the real elements.
+ * Image handling: resolve src -> data-src -> data-original -> data-originalsrc ->
+ *   data-lazy-src -> data-srcset(first), skip data: placeholders, normalize AEM renditions.
  */
+
+const BASE_URL = 'https://www.kotak.bank.in';
+
+function resolveImageUrl(img) {
+  if (!img) return null;
+  const candidates = [
+    img.getAttribute('src'),
+    img.getAttribute('data-src'),
+    img.getAttribute('data-original'),
+    img.getAttribute('data-originalsrc'),
+    img.getAttribute('data-lazy-src'),
+  ];
+  const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset');
+  if (srcset) {
+    const first = srcset.split(',')[0].trim().split(/\s+/)[0];
+    if (first) candidates.push(first);
+  }
+  let url = candidates.find((c) => c && !c.startsWith('data:'));
+  if (!url) return null;
+  return url.replace(/\.transform\/[^?#]*/i, '');
+}
+
+function absolutize(href) {
+  if (!href) return href;
+  if (/^https?:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return href;
+  if (href.startsWith('/')) return BASE_URL + href;
+  return href;
+}
+
+function textOf(el) {
+  return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+}
+
+// Find the nearest enclosing anchor (for a poster image / linked thumbnail).
+function enclosingLink(el, column) {
+  let node = el.parentElement;
+  while (node && node !== column) {
+    if (node.tagName === 'A' && node.getAttribute('href')) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+// Extract a column's meaningful content in document order, de-duplicating.
+function extractColumn(column, document) {
+  const content = [];
+  const usedTexts = new Set();
+  const usedImgUrls = new Set();
+
+  // 1. Images (resolved, wrapped in their link if any). Skip data: placeholders.
+  column.querySelectorAll('img').forEach((img) => {
+    // Skip small decorative per-item list icons in link lists (e.g. "Stories in focus");
+    // the link text already conveys each item.
+    if (img.closest('.mf-list-item, .mf-list, li') || img.classList.contains('mf-list-icon')) return;
+    const url = resolveImageUrl(img);
+    if (!url || usedImgUrls.has(url)) return;
+    usedImgUrls.add(url);
+    const newImg = document.createElement('img');
+    newImg.src = url;
+    const alt = (img.getAttribute('alt') || img.getAttribute('title') || '').trim();
+    if (alt) newImg.alt = alt;
+    const link = enclosingLink(img, column);
+    if (link) {
+      const a = document.createElement('a');
+      a.href = absolutize(link.getAttribute('href'));
+      a.append(newImg);
+      content.push(a);
+    } else {
+      content.push(newImg);
+    }
+  });
+
+  // 2. Headings.
+  column.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
+    const t = textOf(h);
+    if (!t || usedTexts.has(t)) return;
+    usedTexts.add(t);
+    const heading = document.createElement(h.tagName.toLowerCase());
+    heading.textContent = t;
+    content.push(heading);
+  });
+
+  // 3. Paragraph / descriptive text (non-link copy).
+  column.querySelectorAll('p').forEach((p) => {
+    const t = textOf(p);
+    if (!t || usedTexts.has(t)) return;
+    // Skip pure-link paragraphs; their anchors are captured below.
+    if (p.querySelector('a') && p.textContent.replace(/\s+/g, '') === (p.querySelector('a').textContent || '').replace(/\s+/g, '')) return;
+    usedTexts.add(t);
+    const para = document.createElement('p');
+    para.textContent = t;
+    content.push(para);
+  });
+
+  // 4. Text links (CTAs / story links) — skip anchors that only wrap an image.
+  column.querySelectorAll('a[href]').forEach((a) => {
+    const t = textOf(a);
+    if (!t) return; // image-only links already handled
+    // Skip "wrapper" anchors that enclose a heading or multiple block elements
+    // (these concatenate eyebrow + heading + CTA into one giant link).
+    if (a.querySelector('h1, h2, h3, h4, h5, h6') || a.querySelector('p + p')) return;
+    // Skip anchor whose text duplicates an already-captured heading/paragraph.
+    if (usedTexts.has(t)) return;
+    const key = `${t}|${a.getAttribute('href')}`;
+    if (usedTexts.has(key)) return;
+    usedTexts.add(key);
+    const link = document.createElement('a');
+    link.href = absolutize(a.getAttribute('href'));
+    link.textContent = t;
+    content.push(link);
+  });
+
+  return content;
+}
+
 export default function parse(element, { document }) {
-  const resolveImageUrl = (img) => {
-    if (!img) return '';
-    const candidates = [
-      img.getAttribute('src'),
-      img.getAttribute('data-src'),
-      img.getAttribute('data-original'),
-      img.getAttribute('data-lazy-src'),
-    ].filter(Boolean);
-    const real = candidates.find((u) => u && !u.startsWith('data:'));
-    if (real) return real;
-    const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
-    if (srcset) return srcset.split(',')[0].trim().split(/\s+/)[0];
-    return candidates.find((u) => u && !u.startsWith('data:')) || '';
-  };
-
-  // Clean up a cloned column: drop non-content nodes and fix lazy images.
-  const cleanColumn = (col) => {
-    col.querySelectorAll('link, style, script, input, .owl-nav, .owl-dots').forEach((n) => n.remove());
-    // Fix lazy images so they resolve.
-    col.querySelectorAll('img').forEach((img) => {
-      const url = resolveImageUrl(img);
-      if (url) {
-        img.setAttribute('src', url);
-      } else {
-        img.remove();
-      }
-      img.removeAttribute('data-src');
-      img.removeAttribute('data-srcset');
-      img.removeAttribute('srcset');
-    });
-    // Remove empty anchors (overlay links with no text and no media).
-    col.querySelectorAll('a').forEach((a) => {
-      if (!a.textContent.trim() && !a.querySelector('img, picture, video, iframe')) a.remove();
-    });
-    return col;
-  };
-
-  // Locate the column row. Prefer an explicit `.row` wrapper.
-  let columns = [];
-  const row = element.querySelector(':scope .row') || element.querySelector('.row');
-  if (row) {
-    columns = Array.from(row.children).filter((c) => /\bcol-/.test(c.className) || c.children.length);
-  }
+  const row = element.querySelector('.row, [class*="row"]') || element;
+  let columns = Array.from(row.querySelectorAll(':scope > [class*="col-"]'));
   if (!columns.length) {
-    // Fallback: treat each direct child section as a column.
-    columns = Array.from(element.querySelectorAll(':scope > div'));
+    columns = Array.from(element.querySelectorAll('[class*="col-md"], [class*="col-sm"]'));
   }
+  if (!columns.length) columns = [element];
 
-  // Build one cell per column with its cleaned, cloned content.
-  const cellRow = columns
-    .map((col) => cleanColumn(col.cloneNode(true)))
-    .filter((col) => col.textContent.trim() || col.querySelector('img, picture, video, iframe, a'));
+  const rowCells = [];
+  columns.forEach((column) => {
+    const content = extractColumn(column, document);
+    rowCells.push(content.length ? content : '');
+  });
 
-  if (!cellRow.length) {
+  // Drop trailing empty columns; require at least one with content.
+  if (!rowCells.some((c) => c && c !== '')) {
     element.replaceWith(...element.childNodes);
     return;
   }
 
-  const cells = [cellRow];
-
+  const cells = [rowCells];
   const block = WebImporter.Blocks.createBlock(document, { name: 'columns-media', cells });
   element.replaceWith(block);
 }

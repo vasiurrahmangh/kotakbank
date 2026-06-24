@@ -1,3 +1,5 @@
+const placeholders = {};
+
 function updateActiveSlide(slide) {
   const block = slide.closest('.carousel-banner');
   const slideIndex = parseInt(slide.dataset.slideIndex, 10);
@@ -93,8 +95,6 @@ export default async function decorate(block) {
   block.setAttribute('id', `carousel-banner-${carouselId}`);
   const rows = block.querySelectorAll(':scope > div');
   const isSingleSlide = rows.length < 2;
-
-  const placeholders = {};
 
   block.setAttribute('role', 'region');
   block.setAttribute('aria-roledescription', placeholders.carousel || 'Carousel');
