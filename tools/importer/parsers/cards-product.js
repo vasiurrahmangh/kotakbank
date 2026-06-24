@@ -24,16 +24,38 @@
 const BASE_URL = 'https://www.kotak.bank.in';
 
 // heading or eyebrow (lowercased, trimmed) -> correct asset URL.
+// The home page personalizes which product/promo card variant is shown per load,
+// so this map covers every observed rotation variant to keep images stable.
 const IMAGE_FALLBACK = {
   'step up with the right savings account': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/everyday-sa-feature-cad-t.jpg',
+  'backing you with every swipe': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/811-super.jpeg',
+  '811 super': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/811-super.jpeg',
   'hassle free home loans tailored for your needs!': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/home-loan-feature-card.jpg',
+  'enjoy exclusive offers with kotak credit cards': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/cc-card-358-x-201.jpg',
+  'credit cards': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/cc-card-358-x-201.jpg',
+  'your goals need systematic investments': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/mutual-funds-feature-card-t.jpg',
+  'mutual funds': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/mutual-funds-feature-card-t.jpg',
+  'save, trade, & invest smartly': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/3-in-1-trinity-t.jpg',
+  '3-in-1 trinity account': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/3-in-1-trinity-t.jpg',
   'dissolving distances. powering ambitions': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/nri-services-feature-card-t.jpg',
+  'power your aspirations with personal loans': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/pl-feature-card-t.jpg',
+  'personal loans': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/pl-feature-card-t.jpg',
   'power your entrepreneurial dreams': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/current-account-feature-card-t.jpg',
+  'current account': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/current-account-feature-card-t.jpg',
   'not enough funds for your business dreams?': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/business-capital-feature-card-t.jpg',
+  'business lending': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/business-capital-feature-card-t.jpg',
   'hausla empowered': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/bizlabs-docuseries-feature-card.jpg',
+  'kotak bizlabs docuseries': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/bizlabs-docuseries-feature-card.jpg',
   'pay in a flash!': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/bhim-upi-feat-card.jpg',
   'mobile banking that keeps up with you': 'https://www.kotak.bank.in/content/dam/Kotak/product_card_images/kotak-mobile-banking.jpg',
+  'kotak bank app': 'https://www.kotak.bank.in/content/dam/Kotak/product_card_images/kotak-mobile-banking.jpg',
+  'net banking': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/NB-product-mb.jpg',
+  'ways to bank': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/NB-product-mb.jpg',
+  'kotak trinity account': 'https://www.kotak.bank.in/content/dam/Kotak/product_card_images/ProductFeature-demat-t.jpg',
+  'want to report online financial fraud?': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/20240425_Website-Banner358x201.jpg',
   'ask for your ckyc identifier today!': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/ckyc-t.jpg',
+  '3-in-1 account': 'https://www.kotak.bank.in/content/dam/Kotak/Product-Card-Images-Mobile/Trinity-Home-Page-Product-Banner-Final.jpg',
+  'join us in the #maukaganwao campaign': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/MaukaGanwao.jpg',
   'lg': 'https://www.kotak.bank.in/content/dam/Kotak/deals-offers/electronics/cc-emi/lg-offer-t.jpg',
   'tune in to channel red': 'https://www.kotak.bank.in/content/dam/Kotak/feature-cards/Channel-Red.jpg',
 };

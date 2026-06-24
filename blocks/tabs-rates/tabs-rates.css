@@ -93,10 +93,16 @@
   margin-bottom: 10px;
 }
 
-/* Rate value (bold percentage) */
+/* Sub-heading (e.g. "Fixed Deposit (15 months...)") stays dark */
 .tabs-rates .tabs-rates-panel strong {
   font-weight: 700;
   color: var(--text-color);
+}
+
+/* Rate value (bold percentage) — rows that pair a value with a label link
+   show the percentage in brand red, matching the original. */
+.tabs-rates .tabs-rates-panel p:has(a) strong {
+  color: var(--brand-red);
 }
 
 /* Rate label links (Regular / Senior Citizen / Interest Rate) */
