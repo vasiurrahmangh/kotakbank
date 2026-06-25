@@ -2,9 +2,9 @@
   "type": "da",
   "sites": {
     "kotakbank": {
+      "libraryUrl": "https://main--sta-boilerplate--aemdemos.aem.page/tools/sidekick/library.json",
       "previewOrg": "vasiurrahmangh",
       "previewSite": "kotakbank",
-      "libraryUrl": "https://main--sta-boilerplate--aemdemos.aem.page/tools/sidekick/library.json",
       "contentHostUrl": "https://content.da.live/vasiurrahmangh/kotakbank/"
     }
   }
